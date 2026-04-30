@@ -1,0 +1,479 @@
+/* Edit mode — in-place dashboard editing UI. Hidden unless body[data-edit-mode]. */
+
+#edit-mode-toggle {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--color-text-subdue);
+}
+
+#edit-mode-toggle.active {
+    color: var(--color-primary);
+}
+
+body[data-edit-mode] .widget {
+    position: relative;
+    outline: 1px dashed var(--color-text-subdue);
+    outline-offset: 4px;
+    transition: outline-color 0.15s;
+}
+
+body[data-edit-mode] .widget:hover {
+    outline-color: var(--color-primary);
+}
+
+body[data-edit-mode] .widget.sortable-ghost {
+    opacity: 0.4;
+}
+
+body[data-edit-mode] .widget.sortable-drag {
+    cursor: grabbing;
+}
+
+.edit-mode-handles {
+    display: none;
+    position: absolute;
+    top: -10px;
+    right: 8px;
+    z-index: 10;
+    gap: 4px;
+    background: var(--color-popover-background);
+    border: 1px solid var(--color-popover-border);
+    border-radius: 4px;
+    padding: 2px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body[data-edit-mode] .edit-mode-handles {
+    display: flex;
+}
+
+.edit-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-base);
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 14px;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.edit-handle:hover {
+    background: var(--color-widget-background-highlight);
+    color: var(--color-primary);
+}
+
+.edit-handle-drag {
+    cursor: grab;
+}
+
+.edit-handle-drag:active {
+    cursor: grabbing;
+}
+
+.edit-handle-delete:hover {
+    color: var(--color-negative);
+}
+
+#edit-mode-status {
+    display: none;
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    background: var(--color-popover-background);
+    border: 1px solid var(--color-popover-border);
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    font-size: var(--font-size-h5);
+    color: var(--color-text-base);
+    z-index: 100;
+}
+
+body[data-edit-mode] #edit-mode-status {
+    display: block;
+}
+
+#edit-mode-status.saving {
+    color: var(--color-primary);
+}
+
+#edit-mode-status.error {
+    color: var(--color-negative);
+    border-color: var(--color-negative);
+}
+
+.edit-add-widget {
+    display: block;
+    width: 100%;
+    margin-top: var(--widget-gap);
+    padding: 0.75rem;
+    background: transparent;
+    border: 1px dashed var(--color-text-subdue);
+    border-radius: var(--border-radius);
+    color: var(--color-text-subdue);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size-h4);
+}
+
+.edit-add-widget:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+/* ---------- Dialog ---------- */
+
+.edit-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.edit-dialog {
+    background: var(--color-popover-background);
+    border: 1px solid var(--color-popover-border);
+    border-radius: 6px;
+    width: 100%;
+    max-width: 640px;
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.edit-dialog-narrow {
+    max-width: 480px;
+}
+
+.edit-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--color-widget-content-border);
+}
+
+.edit-dialog-header h2 {
+    margin: 0;
+    font-size: var(--font-size-h2);
+    color: var(--color-text-highlight);
+}
+
+.edit-dialog-close {
+    background: transparent;
+    border: none;
+    color: var(--color-text-subdue);
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: 3px;
+}
+
+.edit-dialog-close:hover {
+    background: var(--color-widget-background-highlight);
+    color: var(--color-text-base);
+}
+
+.edit-dialog-body {
+    padding: 1rem 1.25rem;
+    overflow-y: auto;
+    flex: 1;
+    color: var(--color-text-base);
+}
+
+.edit-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid var(--color-widget-content-border);
+}
+
+.edit-dialog-actions button {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    border: 1px solid var(--color-popover-border);
+    background: var(--color-widget-background);
+    color: var(--color-text-base);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size-h4);
+}
+
+.edit-dialog-actions .edit-dialog-save {
+    background: var(--color-primary);
+    color: var(--color-background);
+    border-color: var(--color-primary);
+    font-weight: bold;
+}
+
+.edit-dialog-actions button:hover {
+    filter: brightness(1.1);
+}
+
+.edit-dialog-error {
+    margin: 0 1.25rem 1rem;
+    padding: 0.75rem;
+    background: hsla(0, 70%, 50%, 0.15);
+    border: 1px solid var(--color-negative);
+    border-radius: 4px;
+    color: var(--color-negative);
+    font-size: var(--font-size-h5);
+    white-space: pre-wrap;
+}
+
+/* ---------- Form fields ---------- */
+
+.edit-field {
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.edit-label {
+    font-size: var(--font-size-h5);
+    color: var(--color-text-highlight);
+    font-weight: 600;
+}
+
+.edit-required {
+    color: var(--color-negative);
+    margin-left: 0.25rem;
+}
+
+.edit-help {
+    font-size: var(--font-size-h6);
+    color: var(--color-text-subdue);
+    line-height: 1.4;
+}
+
+.edit-input {
+    background: var(--color-widget-background);
+    border: 1px solid var(--color-widget-content-border);
+    border-radius: 3px;
+    padding: 0.5rem 0.6rem;
+    color: var(--color-text-base);
+    font: inherit;
+    font-size: var(--font-size-h4);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.edit-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+textarea.edit-input {
+    resize: vertical;
+    font-family: monospace;
+    font-size: var(--font-size-h5);
+}
+
+.edit-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: var(--font-size-h4);
+    color: var(--color-text-highlight);
+    font-weight: 600;
+}
+
+.edit-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* ---------- List editors ---------- */
+
+.edit-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.edit-list-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.edit-list-strings .edit-list-item {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.edit-list-strings .edit-list-item .edit-input {
+    flex: 1;
+}
+
+.edit-list-object {
+    border: 1px solid var(--color-widget-content-border);
+    border-radius: 4px;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+.edit-list-object .edit-list-remove {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    padding: 0.25rem 0.6rem;
+    font-size: var(--font-size-h6);
+}
+
+.edit-list-remove {
+    background: transparent;
+    border: 1px solid var(--color-popover-border);
+    color: var(--color-text-subdue);
+    border-radius: 3px;
+    cursor: pointer;
+    font: inherit;
+    padding: 0.25rem 0.5rem;
+}
+
+.edit-list-remove:hover {
+    color: var(--color-negative);
+    border-color: var(--color-negative);
+}
+
+.edit-list-add {
+    align-self: flex-start;
+    background: transparent;
+    border: 1px dashed var(--color-text-subdue);
+    color: var(--color-text-subdue);
+    border-radius: 3px;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size-h5);
+}
+
+.edit-list-add:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+/* ---------- Type picker ---------- */
+
+.edit-type-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.5rem;
+}
+
+.edit-type-option {
+    padding: 0.75rem 0.5rem;
+    background: var(--color-widget-background);
+    border: 1px solid var(--color-widget-content-border);
+    border-radius: 4px;
+    color: var(--color-text-base);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size-h5);
+    text-align: center;
+}
+
+.edit-type-option:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: var(--color-widget-background-highlight);
+}
+
+/* ---------- Autocomplete ---------- */
+
+.edit-autocomplete {
+    position: relative;
+}
+
+.edit-autocomplete-list {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: var(--color-popover-background);
+    border: 1px solid var(--color-popover-border);
+    border-radius: 4px;
+    max-height: 18rem;
+    overflow-y: auto;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.edit-autocomplete-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--color-widget-content-border);
+    padding: 0.5rem 0.6rem;
+    color: var(--color-text-base);
+    cursor: pointer;
+    font: inherit;
+}
+
+.edit-autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.edit-autocomplete-item:hover,
+.edit-autocomplete-item:focus {
+    background: var(--color-widget-background-highlight);
+}
+
+.edit-autocomplete-display {
+    font-size: var(--font-size-h5);
+    color: var(--color-text-highlight);
+}
+
+.edit-autocomplete-hint {
+    font-size: var(--font-size-h6);
+    color: var(--color-text-subdue);
+    margin-top: 2px;
+}
+
+/* ---------- Per-field validation state ---------- */
+
+.edit-validate-state {
+    font-size: var(--font-size-h6);
+    margin-top: 0.25rem;
+    min-height: 1em;
+}
+
+.edit-validate-checking {
+    color: var(--color-text-subdue);
+    font-style: italic;
+}
+
+.edit-validate-ok {
+    color: var(--color-positive);
+}
+
+.edit-validate-error {
+    color: var(--color-negative);
+}
+
+.edit-input-invalid {
+    border-color: var(--color-negative);
+}

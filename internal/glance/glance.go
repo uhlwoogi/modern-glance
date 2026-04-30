@@ -463,6 +463,13 @@ func (a *application) server() (func() error, func() error) {
 	mux.HandleFunc("POST /edit/api/pages/{page}/widgets/{col}/{idx}", a.handleAdminEditWidget)
 	mux.HandleFunc("POST /edit/api/pages/{page}/widgets/{col}/{idx}/delete", a.handleAdminDeleteWidget)
 	mux.HandleFunc("POST /edit/api/pages/{page}/widgets/{col}/{idx}/move", a.handleAdminMoveWidget)
+	mux.HandleFunc("POST /edit/api/pages/{page}/layout", a.handleAdminLayout)
+	mux.HandleFunc("GET /edit/api/pages/{page}/widgets/{col}/{idx}/fields", a.handleAdminGetFields)
+	mux.HandleFunc("POST /edit/api/pages/{page}/widgets/{col}/{idx}/fields", a.handleAdminUpdateFields)
+	mux.HandleFunc("POST /edit/api/pages/{page}/widgets/{col}/create", a.handleAdminCreateFromFields)
+	mux.HandleFunc("GET /edit/api/widget-schemas", a.handleAdminWidgetSchemas)
+	mux.HandleFunc("POST /edit/api/validate/{kind}", a.handleAdminValidate)
+	mux.HandleFunc("POST /edit/api/lookup/{kind}", a.handleAdminLookup)
 
 	if a.RequiresAuth {
 		mux.HandleFunc("GET /login", a.handleLoginPageRequest)
