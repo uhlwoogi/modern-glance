@@ -14,6 +14,7 @@ var (
 	adminPageTemplate         = mustParseTemplate("admin-page.html", "document.html", "footer.html")
 	adminWidgetTemplate       = mustParseTemplate("admin-widget.html", "document.html", "footer.html")
 	adminPageSettingsTemplate = mustParseTemplate("admin-page-settings.html", "document.html", "footer.html")
+	adminSiteSettingsTemplate = mustParseTemplate("admin-site-settings.html", "document.html", "footer.html")
 )
 
 // allWidgetTypes mirrors the switch in newWidget(). Aliases ("stocks") omitted.
@@ -249,6 +250,19 @@ type adminTemplateData struct {
 	PageSettings *adminPageSettings
 	IsFirstPage  bool
 	IsLastPage   bool
+
+	SiteSettings *adminSiteSettings
+}
+
+type adminSiteSettings struct {
+	AppName            string
+	LogoText           string
+	LogoURL            string
+	FaviconURL         string
+	AppIconURL         string
+	AppBackgroundColor string
+	HideFooter         bool
+	CustomFooter       string
 }
 
 func (a *application) handleAdminIndex(w http.ResponseWriter, r *http.Request) {
@@ -381,6 +395,26 @@ func (a *application) handleAdminWidget(w http.ResponseWriter, r *http.Request) 
 		yamlText:    yamlText,
 		loadError:   loadErr,
 	})
+}
+
+func (a *application) handleAdminSiteSettings(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	b := a.Config.Branding
+	settings := &adminSiteSettings{
+		AppName:            b.AppName,
+		LogoText:           b.LogoText,
+		LogoURL:            b.LogoURL,
+		FaviconURL:         b.FaviconURL,
+		AppIconURL:         b.AppIconURL,
+		AppBackgroundColor: b.AppBackgroundColor,
+		HideFooter:         b.HideFooter,
+		CustomFooter:       string(b.CustomFooter),
+	}
+	data := adminTemplateData{App: a, SiteSettings: settings}
+	a.populateTemplateRequestData(&data.Request, r)
+	renderAdminTemplate(w, adminSiteSettingsTemplate, data)
 }
 
 func (a *application) handleAdminPageSettings(w http.ResponseWriter, r *http.Request) {

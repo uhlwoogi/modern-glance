@@ -5,7 +5,12 @@
 {{- define "document-body" }}
 <div class="flex flex-column body-content">
     <main class="content-bounds" style="padding-block: 2rem;">
-        <h1 class="size-h1 margin-bottom-15">Edit</h1>
+        <div class="flex items-center gap-10">
+            <h1 class="size-h1 grow">Edit</h1>
+            <a href="{{ .App.Config.Server.BaseURL }}/edit/site-settings">
+                <button type="button">Site settings</button>
+            </a>
+        </div>
         <p class="color-subdue margin-bottom-25">
             Editing <code>{{ .App.ConfigPath }}</code>. Changes take effect via hot-reload.
         </p>
@@ -42,6 +47,17 @@
         <form method="post" action="{{ .App.Config.Server.BaseURL }}/edit/api/pages" class="flex gap-10 items-center">
             <input type="text" name="title" required placeholder="Page title" class="input grow">
             <button type="submit">Add page</button>
+        </form>
+
+        <hr style="margin-block: 2rem; border: none; border-top: 1px solid var(--color-widget-content-border);">
+        <h3 class="size-h3 margin-bottom-10">Undo last save</h3>
+        <p class="color-subdue margin-bottom-10">
+            Restores the previous contents of <code>{{ .App.ConfigPath }}</code> from the
+            <code>.bak</code> file written on each save. Click again to redo.
+        </p>
+        <form method="post" action="{{ .App.Config.Server.BaseURL }}/edit/api/restore"
+              onsubmit="return confirm('Restore the previous version of your config?');">
+            <button type="submit">Restore previous version</button>
         </form>
     </main>
     {{ template "footer.html" . }}

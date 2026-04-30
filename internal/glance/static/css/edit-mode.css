@@ -557,3 +557,34 @@ textarea.edit-input {
     border-color: var(--color-primary);
     color: var(--color-primary);
 }
+
+/* ---------- Nested widget editor (group / split-column) ---------- */
+
+.edit-nested-widget {
+    border: 1px solid var(--color-widget-content-border);
+    border-radius: 4px;
+    padding: 0.6rem;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.edit-nested-header {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.6rem;
+}
+
+.edit-nested-type {
+    background: var(--color-widget-background);
+    border: 1px solid var(--color-widget-content-border);
+    border-radius: 3px;
+    color: var(--color-text-base);
+    font: inherit;
+    font-size: var(--font-size-h5);
+    padding: 0.2rem 0.4rem;
+    flex: 1;
+}
+
+.edit-nested-body > .edit-field:last-child {
+    margin-bottom: 0;
+}

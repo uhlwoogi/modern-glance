@@ -601,11 +601,13 @@ func (a *application) handleAdminLayout(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	type widgetRef struct {
+		Col int `json:"col"`
+		Idx int `json:"idx"`
+	}
 	var req struct {
-		Columns [][]struct {
-			Col int `json:"col"`
-			Idx int `json:"idx"`
-		} `json:"columns"`
+		HeadWidgets []widgetRef   `json:"headWidgets"`
+		Columns     [][]widgetRef `json:"columns"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -632,6 +634,19 @@ func (a *application) handleAdminLayout(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Snapshot head widgets (col = -1). Optional — pages may not have any.
+	var headWidgetsNode *yaml.Node
+	var headSnapshot []*yaml.Node
+	if hw, err := findOrCreateKey(pageNode, "head-widgets", false, yaml.SequenceNode); err == nil {
+		headWidgetsNode = hw
+		headSnapshot = make([]*yaml.Node, len(hw.Content))
+		copy(headSnapshot, hw.Content)
+	}
+	if len(req.HeadWidgets) != len(headSnapshot) {
+		http.Error(w, fmt.Sprintf("layout has %d head widgets, page has %d", len(req.HeadWidgets), len(headSnapshot)), http.StatusBadRequest)
+		return
+	}
+
 	// Snapshot the existing widget nodes by [col][idx] so we can splice them
 	// into the new layout without mutating during traversal.
 	snapshot := make([][]*yaml.Node, len(columns.Content))
@@ -648,25 +663,51 @@ func (a *application) handleAdminLayout(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Validate: each widget referenced exactly once, all references in range.
-	seen := make(map[[2]int]bool, totalCount)
+	// Column widgets use col >= 0 keys; head widgets use col = -1.
+	seen := make(map[[2]int]bool, totalCount+len(headSnapshot))
+	checkRef := func(ref widgetRef) error {
+		if ref.Col == -1 {
+			if ref.Idx < 0 || ref.Idx >= len(headSnapshot) {
+				return fmt.Errorf("invalid head widget reference idx=%d", ref.Idx)
+			}
+		} else {
+			if ref.Col < 0 || ref.Col >= len(snapshot) || ref.Idx < 0 || ref.Idx >= len(snapshot[ref.Col]) {
+				return fmt.Errorf("invalid widget reference col=%d idx=%d", ref.Col, ref.Idx)
+			}
+		}
+		key := [2]int{ref.Col, ref.Idx}
+		if seen[key] {
+			return fmt.Errorf("widget col=%d idx=%d referenced more than once", ref.Col, ref.Idx)
+		}
+		seen[key] = true
+		return nil
+	}
+	for _, ref := range req.HeadWidgets {
+		if ref.Col != -1 {
+			http.Error(w, "head widgets must use col=-1", http.StatusBadRequest)
+			return
+		}
+		if err := checkRef(ref); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 	refCount := 0
 	for _, newCol := range req.Columns {
 		for _, ref := range newCol {
-			if ref.Col < 0 || ref.Col >= len(snapshot) || ref.Idx < 0 || ref.Idx >= len(snapshot[ref.Col]) {
-				http.Error(w, fmt.Sprintf("invalid widget reference col=%d idx=%d", ref.Col, ref.Idx), http.StatusBadRequest)
+			if ref.Col == -1 {
+				http.Error(w, "head widgets cannot move into columns", http.StatusBadRequest)
 				return
 			}
-			key := [2]int{ref.Col, ref.Idx}
-			if seen[key] {
-				http.Error(w, fmt.Sprintf("widget col=%d idx=%d referenced more than once", ref.Col, ref.Idx), http.StatusBadRequest)
+			if err := checkRef(ref); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			seen[key] = true
 			refCount++
 		}
 	}
 	if refCount != totalCount {
-		http.Error(w, fmt.Sprintf("layout references %d widgets but page has %d", refCount, totalCount), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("layout references %d column widgets but page has %d", refCount, totalCount), http.StatusBadRequest)
 		return
 	}
 
@@ -678,6 +719,14 @@ func (a *application) handleAdminLayout(w http.ResponseWriter, r *http.Request) 
 			newContent = append(newContent, snapshot[ref.Col][ref.Idx])
 		}
 		widgets.Content = newContent
+	}
+	// And rebuild head widgets sequence.
+	if headWidgetsNode != nil {
+		newHead := make([]*yaml.Node, 0, len(req.HeadWidgets))
+		for _, ref := range req.HeadWidgets {
+			newHead = append(newHead, headSnapshot[ref.Idx])
+		}
+		headWidgetsNode.Content = newHead
 	}
 
 	if err := editor.save(); err != nil {
@@ -964,6 +1013,117 @@ func (a *application) handleAdminWidgetSchemas(w http.ResponseWriter, r *http.Re
 	if err := json.NewEncoder(w).Encode(widgetSchemas); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// ---------- site settings (branding) ----------
+
+var brandingFieldKeys = []string{
+	"hide-footer",
+	"custom-footer",
+	"logo-text",
+	"logo-url",
+	"favicon-url",
+	"app-name",
+	"app-icon-url",
+	"app-background-color",
+}
+
+func (a *application) handleAdminUpdateSiteSettings(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	editor, err := loadConfigEditor(a.ConfigPath)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	branding, err := findOrCreateKey(editor.topMapping(), "branding", true, yaml.MappingNode)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	fields := make(map[string]interface{})
+	for _, key := range brandingFieldKeys {
+		if !r.Form.Has(key) {
+			continue
+		}
+		raw := strings.TrimSpace(r.FormValue(key))
+		if key == "hide-footer" {
+			fields[key] = raw == "on" || raw == "true" || raw == "1"
+			continue
+		}
+		if raw == "" {
+			fields[key] = nil
+		} else {
+			fields[key] = raw
+		}
+	}
+	// Force unchecked checkboxes to false (browsers omit them).
+	if _, ok := fields["hide-footer"]; !ok {
+		fields["hide-footer"] = false
+	}
+
+	if err := applyFieldsToWidget(branding, fields); err != nil {
+		adminError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := editor.save(); err != nil {
+		adminError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	http.Redirect(w, r, a.Config.Server.BaseURL+"/edit/site-settings", http.StatusSeeOther)
+}
+
+// ---------- restore from .bak ----------
+
+// handleAdminRestore swaps the contents of glance.yml and glance.yml.bak.
+// Each save writes a .bak of the previous version, so this is effectively an
+// undo. Calling it again redoes since we put the just-current contents into
+// the new .bak.
+func (a *application) handleAdminRestore(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	bakPath := a.ConfigPath + ".bak"
+	bakContent, err := os.ReadFile(bakPath)
+	if err != nil {
+		adminError(w, http.StatusBadRequest, "no backup to restore: "+err.Error())
+		return
+	}
+	if _, err := newConfigFromYAML(bakContent); err != nil {
+		adminError(w, http.StatusBadRequest, "backup is invalid: "+err.Error())
+		return
+	}
+
+	currentContent, err := os.ReadFile(a.ConfigPath)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// Move current → .bak (so user can re-restore).
+	if err := os.WriteFile(bakPath, currentContent, 0644); err != nil {
+		adminError(w, http.StatusInternalServerError, "writing new backup: "+err.Error())
+		return
+	}
+	// Atomic write of .bak content into main file.
+	tmpPath := a.ConfigPath + ".tmp"
+	if err := os.WriteFile(tmpPath, bakContent, 0644); err != nil {
+		adminError(w, http.StatusInternalServerError, "writing temp file: "+err.Error())
+		return
+	}
+	if err := os.Rename(tmpPath, a.ConfigPath); err != nil {
+		os.Remove(tmpPath)
+		adminError(w, http.StatusInternalServerError, "renaming temp file: "+err.Error())
+		return
+	}
+
+	http.Redirect(w, r, a.Config.Server.BaseURL+"/edit", http.StatusSeeOther)
 }
 
 // ---------- page settings + reorder ----------

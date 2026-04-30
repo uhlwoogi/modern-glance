@@ -45,6 +45,10 @@ function widgetTypeOf(widget) {
 /* ---------- Layout (drag-drop) ---------- */
 
 function indexWidgets() {
+    document.querySelectorAll(".head-widgets > .widget").forEach((w, idx) => {
+        w.dataset.origCol = "-1";
+        w.dataset.origIdx = String(idx);
+    });
     document.querySelectorAll(".page-column").forEach((col, colIdx) => {
         col.dataset.colIdx = String(colIdx);
         col.querySelectorAll(":scope > .widget").forEach((w, idx) => {
@@ -55,16 +59,18 @@ function indexWidgets() {
 }
 
 function addHandles() {
-    document.querySelectorAll(".page-column > .widget").forEach((w) => {
-        if (w.querySelector(":scope > .edit-mode-handles")) return;
-        const handles = document.createElement("div");
-        handles.className = "edit-mode-handles";
-        handles.innerHTML =
-            '<button type="button" class="edit-handle edit-handle-drag" title="Drag to reorder" aria-label="Drag">⋮⋮</button>' +
-            '<button type="button" class="edit-handle edit-handle-edit" title="Edit" aria-label="Edit">✎</button>' +
-            '<button type="button" class="edit-handle edit-handle-delete" title="Delete" aria-label="Delete">✕</button>';
-        w.appendChild(handles);
-    });
+    document
+        .querySelectorAll(".page-column > .widget, .head-widgets > .widget")
+        .forEach((w) => {
+            if (w.querySelector(":scope > .edit-mode-handles")) return;
+            const handles = document.createElement("div");
+            handles.className = "edit-mode-handles";
+            handles.innerHTML =
+                '<button type="button" class="edit-handle edit-handle-drag" title="Drag to reorder" aria-label="Drag">⋮⋮</button>' +
+                '<button type="button" class="edit-handle edit-handle-edit" title="Edit" aria-label="Edit">✎</button>' +
+                '<button type="button" class="edit-handle edit-handle-delete" title="Delete" aria-label="Delete">✕</button>';
+            w.appendChild(handles);
+        });
 }
 
 function removeHandles() {
@@ -184,6 +190,15 @@ function setStatus(text, kind) {
 
 async function saveLayout() {
     const { slug } = pageInfo();
+    const headWidgets = [];
+    document
+        .querySelectorAll(".head-widgets > .widget")
+        .forEach((w) =>
+            headWidgets.push({
+                col: parseInt(w.dataset.origCol, 10),
+                idx: parseInt(w.dataset.origIdx, 10),
+            }),
+        );
     const columns = [];
     document.querySelectorAll(".page-column").forEach((col) => {
         const refs = [];
@@ -201,7 +216,7 @@ async function saveLayout() {
         const r = await fetch(api(`/edit/api/pages/${encodeURIComponent(slug)}/layout`), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ columns }),
+            body: JSON.stringify({ headWidgets, columns }),
         });
         if (!r.ok) {
             setStatus("Save failed: " + (await r.text()), "error");
@@ -312,9 +327,50 @@ function renderField(field, value) {
             return wrap(renderListStrings(value));
         case "list-objects":
             return wrap(renderListObjects(field.items, value));
+        case "list-of-widgets":
+            return wrap(renderListOfWidgets(value));
         default:
             return wrap(`<em>Unsupported type: ${escapeHTML(field.type)}</em>`);
     }
+}
+
+// Widget types allowed inside a group/split-column. Nested groups and
+// split-columns are rejected by the backend, so we hide them in the picker.
+function nestedWidgetTypes() {
+    const all = Object.keys(state.schemas || {});
+    return all
+        .filter((t) => t !== "group" && t !== "split-column")
+        .sort();
+}
+
+function renderListOfWidgets(values) {
+    values = Array.isArray(values) ? values : [];
+    const items = values
+        .map((v) => renderNestedWidget(v?.type || "clock", v || {}))
+        .join("");
+    return `
+        <div class="edit-list edit-list-widgets">
+            <div class="edit-list-items">${items}</div>
+            <button type="button" class="edit-list-add" data-add-widget="1">+ Add widget</button>
+        </div>`;
+}
+
+function renderNestedWidget(widgetType, values) {
+    const schema = state.schemas?.[widgetType] || [];
+    const typeOptions = nestedWidgetTypes()
+        .map(
+            (t) =>
+                `<option value="${escapeHTML(t)}" ${t === widgetType ? "selected" : ""}>${escapeHTML(t)}</option>`,
+        )
+        .join("");
+    return `
+        <div class="edit-list-item edit-nested-widget" data-type="${escapeHTML(widgetType)}">
+            <div class="edit-nested-header">
+                <select class="edit-nested-type" title="Widget type">${typeOptions}</select>
+                <button type="button" class="edit-list-remove">Remove</button>
+            </div>
+            <div class="edit-nested-body">${renderForm(schema, values)}</div>
+        </div>`;
 }
 
 function renderListStrings(values) {
@@ -415,6 +471,26 @@ function collectFieldValue(fieldEl, field) {
                 ),
             );
             return filtered.length ? filtered : null;
+        }
+        case "list-of-widgets": {
+            const items = fieldEl.querySelectorAll(
+                ":scope > .edit-list > .edit-list-items > .edit-nested-widget",
+            );
+            const arr = [...items].map((item) => {
+                const type = item.dataset.type;
+                const body = item.querySelector(":scope > .edit-nested-body");
+                const schema = state.schemas?.[type] || [];
+                const values = collectValues(body, schema);
+                // Drop null/empty fields; emit type plus whatever was filled in.
+                const out = { type };
+                for (const [k, v] of Object.entries(values)) {
+                    if (v !== null && !(Array.isArray(v) && v.length === 0)) {
+                        out[k] = v;
+                    }
+                }
+                return out;
+            });
+            return arr.length ? arr : null;
         }
     }
     return null;
@@ -682,8 +758,29 @@ function openDialog({ title, schema, values, submitLabel, onSubmit }) {
                 tmp.innerHTML = renderListObjectItem(itemsSchema, {});
                 items.appendChild(tmp.firstElementChild);
                 items.lastElementChild.querySelector("input, textarea, select")?.focus();
+            } else if (list.classList.contains("edit-list-widgets")) {
+                const defaultType = nestedWidgetTypes()[0] || "clock";
+                const tmp = document.createElement("div");
+                tmp.innerHTML = renderNestedWidget(defaultType, {});
+                items.appendChild(tmp.firstElementChild);
+                items.lastElementChild
+                    .querySelector(".edit-nested-body input, .edit-nested-body textarea, .edit-nested-body select")
+                    ?.focus();
             }
         }
+    });
+
+    // Type-switching for nested widgets: re-render the item's body with the
+    // schema for the newly chosen type.
+    overlay.addEventListener("change", (e) => {
+        const sel = e.target.closest(".edit-nested-type");
+        if (!sel) return;
+        const item = sel.closest(".edit-nested-widget");
+        const newType = sel.value;
+        item.dataset.type = newType;
+        const body = item.querySelector(":scope > .edit-nested-body");
+        const schema = state.schemas?.[newType] || [];
+        body.innerHTML = renderForm(schema, {});
     });
 
     overlay.addEventListener("keydown", (e) => {
@@ -868,6 +965,21 @@ function enterEditMode() {
         state.sortables.push(
             Sortable.create(col, {
                 group: "glance-widgets",
+                handle: ".edit-handle-drag",
+                draggable: ".widget",
+                animation: 150,
+                ghostClass: "sortable-ghost",
+                dragClass: "sortable-drag",
+                onEnd: () => saveLayout(),
+            }),
+        );
+    });
+    // Head widgets get their own group so they can't be dragged into columns
+    // (they live in a separate yaml sequence and render differently).
+    document.querySelectorAll(".head-widgets").forEach((hw) => {
+        state.sortables.push(
+            Sortable.create(hw, {
+                group: "glance-head-widgets",
                 handle: ".edit-handle-drag",
                 draggable: ".widget",
                 animation: 150,

@@ -236,7 +236,15 @@ var widgetSchemas = map[string][]widgetFieldSchema{
 		{Key: "frameless", Label: "Hide widget frame", Type: "boolean"},
 	},
 
-	// group + split-column intentionally skipped: their `widgets:` field is a
-	// recursive list of widget objects, which the inline form generator can't
-	// render usefully yet. They fall through to the YAML editor.
+	"group": {
+		{Key: "title", Label: "Custom title", Type: "string"},
+		{Key: "widgets", Label: "Widgets in group", Type: "list-of-widgets", Required: true,
+			Help: "Each tab inside the group. Nested groups and split-columns aren't allowed."},
+	},
+
+	"split-column": {
+		{Key: "title", Label: "Custom title", Type: "string"},
+		{Key: "max-columns", Label: "Maximum columns (≥2)", Type: "number"},
+		{Key: "widgets", Label: "Widgets shown in the split", Type: "list-of-widgets", Required: true},
+	},
 }
