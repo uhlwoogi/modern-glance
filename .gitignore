@@ -4,3 +4,4 @@
 /.idea
 /glance*.yml
 *.yml.bak
+*.yml.bak.*

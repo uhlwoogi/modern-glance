@@ -47,8 +47,25 @@ func loadConfigEditor(path string) (*configEditor, error) {
 	return e, nil
 }
 
-// save validates the edited tree against newConfigFromYAML, writes a
-// .bak of the previous file, then writes via temp+rename for atomicity.
+const maxBackups = 10
+
+func backupPath(configPath string, n int) string {
+	return fmt.Sprintf("%s.bak.%d", configPath, n)
+}
+
+// rotateBackups shifts every .bak.N up by one (oldest gets dropped) so
+// .bak.1 becomes free to receive the just-superseded contents.
+func rotateBackups(configPath string) {
+	// Drop the oldest first.
+	os.Remove(backupPath(configPath, maxBackups))
+	for i := maxBackups - 1; i >= 1; i-- {
+		_ = os.Rename(backupPath(configPath, i), backupPath(configPath, i+1))
+	}
+}
+
+// save validates the edited tree against newConfigFromYAML, rotates the
+// numbered backup chain (up to maxBackups versions), then writes via
+// temp+rename for atomicity.
 func (e *configEditor) save() error {
 	out, err := yaml.Marshal(&e.root)
 	if err != nil {
@@ -60,7 +77,8 @@ func (e *configEditor) save() error {
 	}
 
 	if existing, err := os.ReadFile(e.path); err == nil {
-		if werr := os.WriteFile(e.path+".bak", existing, 0644); werr != nil {
+		rotateBackups(e.path)
+		if werr := os.WriteFile(backupPath(e.path, 1), existing, 0644); werr != nil {
 			log.Printf("admin: failed to write backup: %v", werr)
 		}
 	}
@@ -1015,6 +1033,152 @@ func (a *application) handleAdminWidgetSchemas(w http.ResponseWriter, r *http.Re
 	}
 }
 
+// ---------- theme settings ----------
+
+// hexToHSL converts a #rrggbb (or #rgb) string into HSL components matching
+// Glance's hslColorField format (H 0-360, S/L 0-100).
+func hexToHSL(hex string) (float64, float64, float64, error) {
+	s := strings.TrimSpace(strings.TrimPrefix(hex, "#"))
+	if len(s) == 3 {
+		s = string(s[0]) + string(s[0]) + string(s[1]) + string(s[1]) + string(s[2]) + string(s[2])
+	}
+	if len(s) != 6 {
+		return 0, 0, 0, fmt.Errorf("hex color must be #rgb or #rrggbb, got %q", hex)
+	}
+	v, err := strconv.ParseUint(s, 16, 32)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("parsing hex %q: %w", hex, err)
+	}
+	r := float64((v>>16)&0xff) / 255.0
+	g := float64((v>>8)&0xff) / 255.0
+	b := float64(v&0xff) / 255.0
+
+	maxC, minC := r, r
+	if g > maxC {
+		maxC = g
+	}
+	if b > maxC {
+		maxC = b
+	}
+	if g < minC {
+		minC = g
+	}
+	if b < minC {
+		minC = b
+	}
+	delta := maxC - minC
+	l := (maxC + minC) / 2
+
+	var h, sat float64
+	if delta == 0 {
+		h, sat = 0, 0
+	} else {
+		if l < 0.5 {
+			sat = delta / (maxC + minC)
+		} else {
+			sat = delta / (2 - maxC - minC)
+		}
+		switch maxC {
+		case r:
+			h = (g - b) / delta
+			if g < b {
+				h += 6
+			}
+		case g:
+			h = (b-r)/delta + 2
+		case b:
+			h = (r-g)/delta + 4
+		}
+		h *= 60
+	}
+	// Round to nearest int for tidy YAML.
+	return float64(int(h + 0.5)), float64(int(sat*100 + 0.5)), float64(int(l*100 + 0.5)), nil
+}
+
+// hslToYAMLString returns the canonical Glance HSL representation: "H S L".
+func hslToYAMLString(h, s, l float64) string {
+	return fmt.Sprintf("%g %g %g", h, s, l)
+}
+
+var themeBoolKeys = map[string]bool{"light": true, "disable-picker": true}
+var themeNumberKeys = map[string]bool{"contrast-multiplier": true, "text-saturation-multiplier": true}
+var themeColorKeys = map[string]bool{"background-color": true, "primary-color": true, "positive-color": true, "negative-color": true}
+
+func (a *application) handleAdminUpdateTheme(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	editor, err := loadConfigEditor(a.ConfigPath)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	theme, err := findOrCreateKey(editor.topMapping(), "theme", true, yaml.MappingNode)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	fields := make(map[string]interface{})
+	// Colors: form sends hex, we store HSL.
+	for key := range themeColorKeys {
+		raw := strings.TrimSpace(r.FormValue(key))
+		if raw == "" {
+			fields[key] = nil
+			continue
+		}
+		h, s, l, err := hexToHSL(raw)
+		if err != nil {
+			adminError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		fields[key] = hslToYAMLString(h, s, l)
+	}
+	// Numbers
+	for key := range themeNumberKeys {
+		raw := strings.TrimSpace(r.FormValue(key))
+		if raw == "" {
+			fields[key] = nil
+			continue
+		}
+		f, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			adminError(w, http.StatusBadRequest, fmt.Sprintf("%s: %v", key, err))
+			return
+		}
+		fields[key] = f
+	}
+	// Booleans (browsers omit unchecked, so default to false).
+	for key := range themeBoolKeys {
+		raw := strings.TrimSpace(r.FormValue(key))
+		fields[key] = raw == "on" || raw == "true" || raw == "1"
+	}
+	// String paths
+	if r.Form.Has("custom-css-file") {
+		raw := strings.TrimSpace(r.FormValue("custom-css-file"))
+		if raw == "" {
+			fields["custom-css-file"] = nil
+		} else {
+			fields["custom-css-file"] = raw
+		}
+	}
+
+	if err := applyFieldsToWidget(theme, fields); err != nil {
+		adminError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := editor.save(); err != nil {
+		adminError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	http.Redirect(w, r, a.Config.Server.BaseURL+"/edit/theme-settings", http.StatusSeeOther)
+}
+
 // ---------- site settings (branding) ----------
 
 var brandingFieldKeys = []string{
@@ -1082,15 +1246,13 @@ func (a *application) handleAdminUpdateSiteSettings(w http.ResponseWriter, r *ht
 
 // ---------- restore from .bak ----------
 
-// handleAdminRestore swaps the contents of glance.yml and glance.yml.bak.
-// Each save writes a .bak of the previous version, so this is effectively an
-// undo. Calling it again redoes since we put the just-current contents into
-// the new .bak.
+// handleAdminRestore swaps the current config with .bak.1 (single-step undo).
+// Click again to flip back. Older numbered backups stay untouched.
 func (a *application) handleAdminRestore(w http.ResponseWriter, r *http.Request) {
 	if !a.adminAccessAllowed(w, r) {
 		return
 	}
-	bakPath := a.ConfigPath + ".bak"
+	bakPath := backupPath(a.ConfigPath, 1)
 	bakContent, err := os.ReadFile(bakPath)
 	if err != nil {
 		adminError(w, http.StatusBadRequest, "no backup to restore: "+err.Error())
@@ -1100,18 +1262,15 @@ func (a *application) handleAdminRestore(w http.ResponseWriter, r *http.Request)
 		adminError(w, http.StatusBadRequest, "backup is invalid: "+err.Error())
 		return
 	}
-
 	currentContent, err := os.ReadFile(a.ConfigPath)
 	if err != nil {
 		adminError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	// Move current → .bak (so user can re-restore).
 	if err := os.WriteFile(bakPath, currentContent, 0644); err != nil {
 		adminError(w, http.StatusInternalServerError, "writing new backup: "+err.Error())
 		return
 	}
-	// Atomic write of .bak content into main file.
 	tmpPath := a.ConfigPath + ".tmp"
 	if err := os.WriteFile(tmpPath, bakContent, 0644); err != nil {
 		adminError(w, http.StatusInternalServerError, "writing temp file: "+err.Error())
@@ -1122,7 +1281,51 @@ func (a *application) handleAdminRestore(w http.ResponseWriter, r *http.Request)
 		adminError(w, http.StatusInternalServerError, "renaming temp file: "+err.Error())
 		return
 	}
+	http.Redirect(w, r, a.Config.Server.BaseURL+"/edit", http.StatusSeeOther)
+}
 
+// handleAdminRestoreFromBackup restores from a specific numbered backup. The
+// just-current contents are saved as a fresh .bak.1 (rotating older ones up)
+// so the user can always undo their undo.
+func (a *application) handleAdminRestoreFromBackup(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	n, err := strconv.Atoi(r.PathValue("n"))
+	if err != nil || n < 1 || n > maxBackups {
+		http.Error(w, "bad backup number", http.StatusBadRequest)
+		return
+	}
+
+	bakContent, err := os.ReadFile(backupPath(a.ConfigPath, n))
+	if err != nil {
+		adminError(w, http.StatusBadRequest, "backup not found: "+err.Error())
+		return
+	}
+	if _, err := newConfigFromYAML(bakContent); err != nil {
+		adminError(w, http.StatusBadRequest, "backup is invalid: "+err.Error())
+		return
+	}
+	currentContent, err := os.ReadFile(a.ConfigPath)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	rotateBackups(a.ConfigPath)
+	if err := os.WriteFile(backupPath(a.ConfigPath, 1), currentContent, 0644); err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	tmpPath := a.ConfigPath + ".tmp"
+	if err := os.WriteFile(tmpPath, bakContent, 0644); err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := os.Rename(tmpPath, a.ConfigPath); err != nil {
+		os.Remove(tmpPath)
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	http.Redirect(w, r, a.Config.Server.BaseURL+"/edit", http.StatusSeeOther)
 }
 

@@ -1,0 +1,80 @@
+{{- template "document.html" . }}
+
+{{- define "document-title" }}Theme settings - {{ .App.Config.Branding.AppName }}{{ end }}
+
+{{- define "document-body" }}
+<div class="flex flex-column body-content">
+    <main class="content-bounds" style="padding-block: 2rem;">
+        <div class="margin-bottom-15">
+            <a class="color-subdue" href="{{ .App.Config.Server.BaseURL }}/edit">← Edit</a>
+        </div>
+        <h1 class="size-h1 margin-bottom-15">Theme</h1>
+        <p class="color-subdue margin-bottom-25">
+            Colors are stored as HSL in the YAML, but the picker below shows hex
+            for convenience — Glance converts on save. Theme presets and custom CSS
+            beyond the file path still need YAML.
+        </p>
+
+        <form method="post" action="{{ .App.Config.Server.BaseURL }}/edit/api/theme-settings"
+              style="display:flex;flex-direction:column;gap:1rem;max-width:36rem;">
+
+            <fieldset style="border:1px solid var(--color-widget-content-border);border-radius:4px;padding:1rem;">
+                <legend class="color-subdue size-h5">Colors</legend>
+                <div style="display:grid;grid-template-columns:1fr auto;gap:0.75rem;align-items:center;">
+                    <label for="bg">Background</label>
+                    <input id="bg" type="color" name="background-color" value="{{ if .ThemeSettings.BackgroundColorHex }}{{ .ThemeSettings.BackgroundColorHex }}{{ else }}#151823{{ end }}">
+
+                    <label for="pc">Primary (accent)</label>
+                    <input id="pc" type="color" name="primary-color" value="{{ if .ThemeSettings.PrimaryColorHex }}{{ .ThemeSettings.PrimaryColorHex }}{{ else }}#e4cf8d{{ end }}">
+
+                    <label for="ps">Positive</label>
+                    <input id="ps" type="color" name="positive-color" value="{{ if .ThemeSettings.PositiveColorHex }}{{ .ThemeSettings.PositiveColorHex }}{{ else }}#7fbf7f{{ end }}">
+
+                    <label for="ng">Negative</label>
+                    <input id="ng" type="color" name="negative-color" value="{{ if .ThemeSettings.NegativeColorHex }}{{ .ThemeSettings.NegativeColorHex }}{{ else }}#e07f7f{{ end }}">
+                </div>
+            </fieldset>
+
+            <fieldset style="border:1px solid var(--color-widget-content-border);border-radius:4px;padding:1rem;">
+                <legend class="color-subdue size-h5">Tweaks</legend>
+
+                <label class="form-label widget-header" style="display:flex;flex-direction:row;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                    <input type="checkbox" name="light" {{ if .ThemeSettings.Light }}checked{{ end }}>
+                    <span>Light mode (use light text/background scheme)</span>
+                </label>
+
+                <label class="form-label widget-header" style="display:flex;flex-direction:row;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                    <input type="checkbox" name="disable-picker" {{ if .ThemeSettings.DisablePicker }}checked{{ end }}>
+                    <span>Hide the theme picker in the header</span>
+                </label>
+
+                <label class="form-label widget-header">
+                    Contrast multiplier
+                    <input type="number" step="0.05" min="0.5" max="2.0" name="contrast-multiplier" class="input"
+                           value="{{ if .ThemeSettings.ContrastMultiplier }}{{ .ThemeSettings.ContrastMultiplier }}{{ end }}" placeholder="1.0">
+                    <small class="color-subdue size-h5">Higher = stronger contrast for body text. Default 1.0.</small>
+                </label>
+
+                <label class="form-label widget-header" style="margin-top:0.75rem;">
+                    Text saturation multiplier
+                    <input type="number" step="0.05" min="0" max="2.0" name="text-saturation-multiplier" class="input"
+                           value="{{ if .ThemeSettings.TextSaturationMultiplier }}{{ .ThemeSettings.TextSaturationMultiplier }}{{ end }}" placeholder="1.0">
+                    <small class="color-subdue size-h5">0 = monochrome text. Default 1.0.</small>
+                </label>
+            </fieldset>
+
+            <label class="form-label widget-header">
+                Custom CSS file
+                <input type="text" name="custom-css-file" class="input" value="{{ .ThemeSettings.CustomCSSFile }}" placeholder="/assets/custom.css">
+                <small class="color-subdue size-h5">Path to a .css file under your assets-path, loaded after the bundled styles.</small>
+            </label>
+
+            <div class="flex gap-10 margin-top-10">
+                <button type="submit">Save</button>
+                <a class="color-subdue" style="align-self:center;" href="{{ .App.Config.Server.BaseURL }}/edit">Cancel</a>
+            </div>
+        </form>
+    </main>
+    {{ template "footer.html" . }}
+</div>
+{{- end }}

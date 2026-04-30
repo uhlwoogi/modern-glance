@@ -7,6 +7,9 @@
     <main class="content-bounds" style="padding-block: 2rem;">
         <div class="flex items-center gap-10">
             <h1 class="size-h1 grow">Edit</h1>
+            <a href="{{ .App.Config.Server.BaseURL }}/edit/theme-settings">
+                <button type="button">Theme</button>
+            </a>
             <a href="{{ .App.Config.Server.BaseURL }}/edit/site-settings">
                 <button type="button">Site settings</button>
             </a>
@@ -50,15 +53,33 @@
         </form>
 
         <hr style="margin-block: 2rem; border: none; border-top: 1px solid var(--color-widget-content-border);">
-        <h3 class="size-h3 margin-bottom-10">Undo last save</h3>
+        <h3 class="size-h3 margin-bottom-10">Saved versions</h3>
         <p class="color-subdue margin-bottom-10">
-            Restores the previous contents of <code>{{ .App.ConfigPath }}</code> from the
-            <code>.bak</code> file written on each save. Click again to redo.
+            Up to {{ len .Backups }} previous versions of <code>{{ .App.ConfigPath }}</code> are kept.
+            Restoring any one writes it as the current config and saves the just-current state as the new <em>most recent</em>, so you can always step back.
         </p>
+
         <form method="post" action="{{ .App.Config.Server.BaseURL }}/edit/api/restore"
-              onsubmit="return confirm('Restore the previous version of your config?');">
-            <button type="submit">Restore previous version</button>
+              onsubmit="return confirm('Restore the most recent backup? You can click again to flip back.');" class="margin-bottom-15">
+            <button type="submit">Restore previous version (toggle)</button>
         </form>
+
+        <ul class="list list-gap-10">
+            {{- range .Backups }}
+            {{- if .Present }}
+            <li class="flex items-center gap-10">
+                <div class="grow">
+                    <span class="color-text-base">Version {{ .N }}</span>
+                    <span class="color-subdue size-h5"> — {{ .Time }} · {{ .SizeKB }} KB</span>
+                </div>
+                <form method="post" action="{{ $.App.Config.Server.BaseURL }}/edit/api/restore/{{ .N }}"
+                      onsubmit="return confirm('Restore this version? Current state will be saved as the new most recent backup.');">
+                    <button type="submit">Restore this</button>
+                </form>
+            </li>
+            {{- end }}
+            {{- end }}
+        </ul>
     </main>
     {{ template "footer.html" . }}
 </div>

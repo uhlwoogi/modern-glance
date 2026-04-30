@@ -456,6 +456,7 @@ func (a *application) server() (func() error, func() error) {
 	mux.HandleFunc("GET /edit/pages/{page}", a.handleAdminPage)
 	mux.HandleFunc("GET /edit/pages/{page}/settings", a.handleAdminPageSettings)
 	mux.HandleFunc("GET /edit/site-settings", a.handleAdminSiteSettings)
+	mux.HandleFunc("GET /edit/theme-settings", a.handleAdminThemeSettings)
 	mux.HandleFunc("GET /edit/pages/{page}/widgets/{col}/{idx}", a.handleAdminWidget)
 
 	mux.HandleFunc("POST /edit/api/pages", a.handleAdminAddPage)
@@ -479,7 +480,9 @@ func (a *application) server() (func() error, func() error) {
 	mux.HandleFunc("POST /edit/api/pages/{page}/fields", a.handleAdminUpdatePageFields)
 	mux.HandleFunc("POST /edit/api/pages/{page}/move", a.handleAdminMovePage)
 	mux.HandleFunc("POST /edit/api/restore", a.handleAdminRestore)
+	mux.HandleFunc("POST /edit/api/restore/{n}", a.handleAdminRestoreFromBackup)
 	mux.HandleFunc("POST /edit/api/site-settings", a.handleAdminUpdateSiteSettings)
+	mux.HandleFunc("POST /edit/api/theme-settings", a.handleAdminUpdateTheme)
 
 	if a.RequiresAuth {
 		mux.HandleFunc("GET /login", a.handleLoginPageRequest)

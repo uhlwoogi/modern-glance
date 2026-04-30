@@ -2,9 +2,12 @@ package glance
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"strconv"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -14,7 +17,8 @@ var (
 	adminPageTemplate         = mustParseTemplate("admin-page.html", "document.html", "footer.html")
 	adminWidgetTemplate       = mustParseTemplate("admin-widget.html", "document.html", "footer.html")
 	adminPageSettingsTemplate = mustParseTemplate("admin-page-settings.html", "document.html", "footer.html")
-	adminSiteSettingsTemplate = mustParseTemplate("admin-site-settings.html", "document.html", "footer.html")
+	adminSiteSettingsTemplate  = mustParseTemplate("admin-site-settings.html", "document.html", "footer.html")
+	adminThemeSettingsTemplate = mustParseTemplate("admin-theme-settings.html", "document.html", "footer.html")
 )
 
 // allWidgetTypes mirrors the switch in newWidget(). Aliases ("stocks") omitted.
@@ -214,6 +218,13 @@ type adminPageSummary struct {
 	IsLast      bool
 }
 
+type adminBackupSummary struct {
+	N       int
+	Time    string // human-readable, e.g. "2 minutes ago"
+	SizeKB  int
+	Present bool
+}
+
 type adminPageDetail struct {
 	Title       string
 	Slug        string
@@ -251,7 +262,22 @@ type adminTemplateData struct {
 	IsFirstPage  bool
 	IsLastPage   bool
 
-	SiteSettings *adminSiteSettings
+	SiteSettings  *adminSiteSettings
+	ThemeSettings *adminThemeSettings
+
+	Backups []adminBackupSummary
+}
+
+type adminThemeSettings struct {
+	BackgroundColorHex       string
+	PrimaryColorHex          string
+	PositiveColorHex         string
+	NegativeColorHex         string
+	Light                    bool
+	DisablePicker            bool
+	ContrastMultiplier       float32
+	TextSaturationMultiplier float32
+	CustomCSSFile            string
 }
 
 type adminSiteSettings struct {
@@ -288,9 +314,41 @@ func (a *application) handleAdminIndex(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	data := adminTemplateData{App: a, Pages: summaries}
+	data := adminTemplateData{App: a, Pages: summaries, Backups: a.collectBackups()}
 	a.populateTemplateRequestData(&data.Request, r)
 	renderAdminTemplate(w, adminIndexTemplate, data)
+}
+
+func (a *application) collectBackups() []adminBackupSummary {
+	out := make([]adminBackupSummary, 0, maxBackups)
+	now := time.Now()
+	for n := 1; n <= maxBackups; n++ {
+		info, err := os.Stat(backupPath(a.ConfigPath, n))
+		if err != nil {
+			out = append(out, adminBackupSummary{N: n, Present: false})
+			continue
+		}
+		out = append(out, adminBackupSummary{
+			N:       n,
+			Time:    humanizeDuration(now.Sub(info.ModTime())) + " ago",
+			SizeKB:  int(info.Size() / 1024),
+			Present: true,
+		})
+	}
+	return out
+}
+
+func humanizeDuration(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	}
 }
 
 func (a *application) handleAdminPage(w http.ResponseWriter, r *http.Request) {
@@ -395,6 +453,34 @@ func (a *application) handleAdminWidget(w http.ResponseWriter, r *http.Request) 
 		yamlText:    yamlText,
 		loadError:   loadErr,
 	})
+}
+
+func hexOf(c *hslColorField) string {
+	if c == nil {
+		return ""
+	}
+	return c.ToHex()
+}
+
+func (a *application) handleAdminThemeSettings(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	t := a.Config.Theme
+	settings := &adminThemeSettings{
+		BackgroundColorHex:       hexOf(t.BackgroundColor),
+		PrimaryColorHex:          hexOf(t.PrimaryColor),
+		PositiveColorHex:         hexOf(t.PositiveColor),
+		NegativeColorHex:         hexOf(t.NegativeColor),
+		Light:                    t.Light,
+		DisablePicker:            t.DisablePicker,
+		ContrastMultiplier:       t.ContrastMultiplier,
+		TextSaturationMultiplier: t.TextSaturationMultiplier,
+		CustomCSSFile:            t.CustomCSSFile,
+	}
+	data := adminTemplateData{App: a, ThemeSettings: settings}
+	a.populateTemplateRequestData(&data.Request, r)
+	renderAdminTemplate(w, adminThemeSettingsTemplate, data)
 }
 
 func (a *application) handleAdminSiteSettings(w http.ResponseWriter, r *http.Request) {
