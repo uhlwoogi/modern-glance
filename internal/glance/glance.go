@@ -470,6 +470,10 @@ func (a *application) server() (func() error, func() error) {
 	mux.HandleFunc("GET /edit/api/widget-schemas", a.handleAdminWidgetSchemas)
 	mux.HandleFunc("POST /edit/api/validate/{kind}", a.handleAdminValidate)
 	mux.HandleFunc("POST /edit/api/lookup/{kind}", a.handleAdminLookup)
+	mux.HandleFunc("POST /edit/api/pages/{page}/columns", a.handleAdminAddColumn)
+	mux.HandleFunc("POST /edit/api/pages/{page}/columns/{col}/delete", a.handleAdminDeleteColumn)
+	mux.HandleFunc("POST /edit/api/pages/{page}/columns/{col}/move", a.handleAdminMoveColumn)
+	mux.HandleFunc("POST /edit/api/pages/{page}/columns/{col}/size", a.handleAdminColumnSize)
 
 	if a.RequiresAuth {
 		mux.HandleFunc("GET /login", a.handleLoginPageRequest)

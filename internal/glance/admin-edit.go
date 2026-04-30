@@ -162,6 +162,35 @@ func widgetsOf(columnNode *yaml.Node) (*yaml.Node, error) {
 	return findOrCreateKey(columnNode, "widgets", true, yaml.SequenceNode)
 }
 
+func newColumnNode(size string) *yaml.Node {
+	if size == "" {
+		size = "full"
+	}
+	return &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
+		{Kind: yaml.ScalarNode, Value: "size"},
+		{Kind: yaml.ScalarNode, Value: size},
+		{Kind: yaml.ScalarNode, Value: "widgets"},
+		{Kind: yaml.SequenceNode},
+	}}
+}
+
+func setColumnSize(columnNode *yaml.Node, size string) error {
+	if columnNode.Kind != yaml.MappingNode {
+		return fmt.Errorf("column is not a mapping")
+	}
+	for i := 0; i+1 < len(columnNode.Content); i += 2 {
+		if columnNode.Content[i].Value == "size" {
+			columnNode.Content[i+1] = &yaml.Node{Kind: yaml.ScalarNode, Value: size}
+			return nil
+		}
+	}
+	columnNode.Content = append(columnNode.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Value: "size"},
+		&yaml.Node{Kind: yaml.ScalarNode, Value: size},
+	)
+	return nil
+}
+
 func newPageNode(title string) *yaml.Node {
 	return &yaml.Node{
 		Kind: yaml.MappingNode,
@@ -935,4 +964,165 @@ func (a *application) handleAdminWidgetSchemas(w http.ResponseWriter, r *http.Re
 	if err := json.NewEncoder(w).Encode(widgetSchemas); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// ---------- column endpoints ----------
+
+func (a *application) editColumns(slug string) (*configEditor, *yaml.Node, error) {
+	pageIdx, ok := a.freshPageIndexBySlug(slug)
+	if !ok {
+		return nil, nil, fmt.Errorf("page not found")
+	}
+	editor, err := loadConfigEditor(a.ConfigPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	pageNode, err := editor.pageNodeAt(pageIdx)
+	if err != nil {
+		return nil, nil, err
+	}
+	columns, err := columnsOf(pageNode)
+	if err != nil {
+		return nil, nil, err
+	}
+	return editor, columns, nil
+}
+
+func (a *application) handleAdminAddColumn(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	size := strings.TrimSpace(r.FormValue("size"))
+	if size == "" {
+		size = "full"
+	}
+
+	editor, columns, err := a.editColumns(r.PathValue("page"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	columns.Content = append(columns.Content, newColumnNode(size))
+
+	if err := editor.save(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (a *application) handleAdminDeleteColumn(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	col, err := strconv.Atoi(r.PathValue("col"))
+	if err != nil {
+		http.Error(w, "bad column", http.StatusBadRequest)
+		return
+	}
+
+	editor, columns, err := a.editColumns(r.PathValue("page"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if col < 0 || col >= len(columns.Content) {
+		http.Error(w, "column index out of range", http.StatusBadRequest)
+		return
+	}
+	if len(columns.Content) <= 1 {
+		http.Error(w, "cannot delete the last remaining column", http.StatusBadRequest)
+		return
+	}
+	columns.Content = append(columns.Content[:col], columns.Content[col+1:]...)
+
+	if err := editor.save(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (a *application) handleAdminMoveColumn(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	col, err := strconv.Atoi(r.PathValue("col"))
+	if err != nil {
+		http.Error(w, "bad column", http.StatusBadRequest)
+		return
+	}
+	dir := r.URL.Query().Get("dir")
+	delta := 0
+	switch dir {
+	case "up", "left":
+		delta = -1
+	case "down", "right":
+		delta = 1
+	default:
+		http.Error(w, "dir must be up|down|left|right", http.StatusBadRequest)
+		return
+	}
+
+	editor, columns, err := a.editColumns(r.PathValue("page"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	target := col + delta
+	if col < 0 || col >= len(columns.Content) || target < 0 || target >= len(columns.Content) {
+		http.Error(w, "cannot move further in that direction", http.StatusBadRequest)
+		return
+	}
+	columns.Content[col], columns.Content[target] = columns.Content[target], columns.Content[col]
+
+	if err := editor.save(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (a *application) handleAdminColumnSize(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	col, err := strconv.Atoi(r.PathValue("col"))
+	if err != nil {
+		http.Error(w, "bad column", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	size := strings.TrimSpace(r.FormValue("size"))
+	if size == "" {
+		http.Error(w, "size is required", http.StatusBadRequest)
+		return
+	}
+
+	editor, columns, err := a.editColumns(r.PathValue("page"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if col < 0 || col >= len(columns.Content) {
+		http.Error(w, "column index out of range", http.StatusBadRequest)
+		return
+	}
+	if err := setColumnSize(columns.Content[col], size); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := editor.save(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

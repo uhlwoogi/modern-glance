@@ -87,6 +87,90 @@ function removeColumnAddButtons() {
     document.querySelectorAll(".edit-add-widget").forEach((b) => b.remove());
 }
 
+function inferColumnSize(col) {
+    const m = String(col.className || "").match(/page-column-(\S+)/);
+    return m ? m[1] : "full";
+}
+
+function addColumnHeaders() {
+    const cols = document.querySelectorAll(".page-column");
+    cols.forEach((col, colIdx) => {
+        if (col.querySelector(":scope > .edit-column-header")) return;
+        const size = inferColumnSize(col);
+        const header = document.createElement("div");
+        header.className = "edit-column-header";
+        header.dataset.col = String(colIdx);
+        header.innerHTML = `
+            <span class="edit-column-label">Column ${colIdx + 1}</span>
+            <select class="edit-column-size" title="Column size">
+                <option value="small" ${size === "small" ? "selected" : ""}>small</option>
+                <option value="full" ${size === "full" ? "selected" : ""}>full</option>
+            </select>
+            <div class="edit-column-spacer"></div>
+            <button type="button" class="edit-column-move" data-dir="up" title="Move left" ${colIdx === 0 ? "disabled" : ""}>←</button>
+            <button type="button" class="edit-column-move" data-dir="down" title="Move right" ${colIdx === cols.length - 1 ? "disabled" : ""}>→</button>
+            <button type="button" class="edit-column-delete" title="Delete column" ${cols.length === 1 ? "disabled" : ""}>✕</button>
+        `;
+        col.insertBefore(header, col.firstChild);
+    });
+
+    // Add a "+ Add column" button in the page-columns container.
+    const container = document.querySelector(".page-columns");
+    if (container && !container.parentElement.querySelector(":scope > .edit-add-column")) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "edit-add-column";
+        btn.textContent = "+ Add column";
+        container.parentElement.insertBefore(btn, container.nextSibling);
+    }
+}
+
+function removeColumnHeaders() {
+    document.querySelectorAll(".edit-column-header").forEach((el) => el.remove());
+    document.querySelectorAll(".edit-add-column").forEach((el) => el.remove());
+}
+
+async function postColumnAction(path, body) {
+    const { slug, baseURL } = pageInfo();
+    const init = { method: "POST" };
+    if (body instanceof URLSearchParams) {
+        init.headers = { "Content-Type": "application/x-www-form-urlencoded" };
+        init.body = body.toString();
+    }
+    setStatus("Saving…", "saving");
+    const r = await fetch(
+        baseURL + "/edit/api/pages/" + encodeURIComponent(slug) + path,
+        init,
+    );
+    if (!r.ok) {
+        setStatus("Failed: " + (await r.text()), "error");
+        return false;
+    }
+    location.reload();
+    return true;
+}
+
+async function addColumn(size) {
+    const body = new URLSearchParams();
+    body.set("size", size || "full");
+    return postColumnAction("/columns", body);
+}
+
+async function deleteColumn(col) {
+    if (!confirm("Delete this column and everything in it?")) return;
+    return postColumnAction(`/columns/${col}/delete`, null);
+}
+
+async function moveColumn(col, dir) {
+    return postColumnAction(`/columns/${col}/move?dir=${dir}`, null);
+}
+
+async function setColumnSize(col, size) {
+    const body = new URLSearchParams();
+    body.set("size", size);
+    return postColumnAction(`/columns/${col}/size`, body);
+}
+
 function setStatus(text, kind) {
     let el = document.getElementById("edit-mode-status");
     if (!el) {
@@ -776,6 +860,7 @@ function enterEditMode() {
     document.querySelectorAll("#edit-mode-toggle").forEach((b) => b.classList.add("active"));
     indexWidgets();
     addHandles();
+    addColumnHeaders();
     addColumnAddButtons();
     setStatus("Edit mode — drag widgets to rearrange");
 
@@ -806,6 +891,7 @@ function exitEditMode() {
     state.sortables.forEach((s) => s.destroy());
     state.sortables = [];
     removeHandles();
+    removeColumnHeaders();
     removeColumnAddButtons();
     document.getElementById("edit-mode-status")?.remove();
     localStorage.removeItem(STORAGE_KEY);
@@ -864,6 +950,36 @@ document.addEventListener("click", (e) => {
     if (addBtn) {
         e.preventDefault();
         showAddPicker(parseInt(addBtn.dataset.col, 10));
+        return;
+    }
+    const addColBtn = e.target.closest(".edit-add-column");
+    if (addColBtn) {
+        e.preventDefault();
+        const size = prompt("Column size: 'small' or 'full'", "full");
+        if (size && (size === "small" || size === "full")) addColumn(size);
+        return;
+    }
+    const moveColBtn = e.target.closest(".edit-column-move");
+    if (moveColBtn) {
+        e.preventDefault();
+        const header = moveColBtn.closest(".edit-column-header");
+        moveColumn(parseInt(header.dataset.col, 10), moveColBtn.dataset.dir);
+        return;
+    }
+    const delColBtn = e.target.closest(".edit-column-delete");
+    if (delColBtn) {
+        e.preventDefault();
+        const header = delColBtn.closest(".edit-column-header");
+        deleteColumn(parseInt(header.dataset.col, 10));
+        return;
+    }
+});
+
+document.addEventListener("change", (e) => {
+    const sizeSel = e.target.closest(".edit-column-size");
+    if (sizeSel) {
+        const header = sizeSel.closest(".edit-column-header");
+        setColumnSize(parseInt(header.dataset.col, 10), sizeSel.value);
     }
 });
 

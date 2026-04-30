@@ -477,3 +477,83 @@ textarea.edit-input {
 .edit-input-invalid {
     border-color: var(--color-negative);
 }
+
+/* ---------- Column controls ---------- */
+
+.edit-column-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    background: var(--color-popover-background);
+    border: 1px solid var(--color-popover-border);
+    border-radius: 4px;
+    font-size: var(--font-size-h5);
+}
+
+.edit-column-label {
+    color: var(--color-text-subdue);
+    font-weight: 600;
+}
+
+.edit-column-spacer {
+    flex: 1;
+}
+
+.edit-column-size {
+    background: var(--color-widget-background);
+    border: 1px solid var(--color-widget-content-border);
+    border-radius: 3px;
+    color: var(--color-text-base);
+    font: inherit;
+    font-size: var(--font-size-h6);
+    padding: 0.15rem 0.3rem;
+}
+
+.edit-column-move,
+.edit-column-delete {
+    background: transparent;
+    border: 1px solid var(--color-popover-border);
+    color: var(--color-text-subdue);
+    border-radius: 3px;
+    padding: 0.15rem 0.5rem;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size-h6);
+}
+
+.edit-column-move:hover,
+.edit-column-delete:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.edit-column-move:disabled,
+.edit-column-delete:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.edit-column-delete:hover:not(:disabled) {
+    color: var(--color-negative);
+    border-color: var(--color-negative);
+}
+
+.edit-add-column {
+    display: block;
+    margin: var(--widget-gap) auto 0;
+    padding: 0.6rem 1.5rem;
+    background: transparent;
+    border: 1px dashed var(--color-text-subdue);
+    border-radius: var(--border-radius);
+    color: var(--color-text-subdue);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size-h4);
+}
+
+.edit-add-column:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
