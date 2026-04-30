@@ -1,0 +1,70 @@
+{{- template "document.html" . }}
+
+{{- define "document-title" }}Settings: {{ .Page.Title }} - {{ .App.Config.Branding.AppName }}{{ end }}
+
+{{- define "document-body" }}
+<div class="flex flex-column body-content">
+    <main class="content-bounds" style="padding-block: 2rem;">
+        <div class="margin-bottom-15">
+            <a class="color-subdue" href="{{ .App.Config.Server.BaseURL }}/edit">← Edit</a>
+            <span class="color-subdue"> / </span>
+            <a class="color-subdue" href="{{ .App.Config.Server.BaseURL }}/edit/pages/{{ .Page.Slug }}">{{ .Page.Title }}</a>
+        </div>
+        <h1 class="size-h1 margin-bottom-25">Page settings</h1>
+
+        <form method="post" action="{{ .App.Config.Server.BaseURL }}/edit/api/pages/{{ .Page.Slug }}/fields"
+              style="display:flex;flex-direction:column;gap:1rem;max-width:36rem;">
+
+            <label class="form-label widget-header">
+                Name <span style="color:var(--color-negative);">*</span>
+                <input type="text" name="name" class="input" required value="{{ .PageSettings.Name }}">
+            </label>
+
+            <label class="form-label widget-header">
+                URL slug
+                <input type="text" name="slug" class="input" value="{{ .PageSettings.Slug }}" placeholder="auto from name">
+                <small class="color-subdue size-h5">Leave blank to auto-generate from the name.</small>
+            </label>
+
+            <label class="form-label widget-header">
+                Page width
+                <select name="width" class="input">
+                    <option value="" {{ if eq .PageSettings.Width "" }}selected{{ end }}>default</option>
+                    <option value="slim" {{ if eq .PageSettings.Width "slim" }}selected{{ end }}>slim</option>
+                    <option value="wide" {{ if eq .PageSettings.Width "wide" }}selected{{ end }}>wide</option>
+                </select>
+            </label>
+
+            <label class="form-label widget-header">
+                Desktop nav width
+                <select name="desktop-navigation-width" class="input">
+                    <option value="" {{ if eq .PageSettings.DesktopNavigationWidth "" }}selected{{ end }}>same as page width</option>
+                    <option value="slim" {{ if eq .PageSettings.DesktopNavigationWidth "slim" }}selected{{ end }}>slim</option>
+                    <option value="wide" {{ if eq .PageSettings.DesktopNavigationWidth "wide" }}selected{{ end }}>wide</option>
+                </select>
+            </label>
+
+            <label class="form-label widget-header" style="display:flex;flex-direction:row;align-items:center;gap:0.5rem;">
+                <input type="checkbox" name="show-mobile-header" {{ if .PageSettings.ShowMobileHeader }}checked{{ end }}>
+                <span>Show mobile header (page title bar)</span>
+            </label>
+
+            <label class="form-label widget-header" style="display:flex;flex-direction:row;align-items:center;gap:0.5rem;">
+                <input type="checkbox" name="hide-desktop-navigation" {{ if .PageSettings.HideDesktopNavigation }}checked{{ end }}>
+                <span>Hide desktop nav (single-page mode)</span>
+            </label>
+
+            <label class="form-label widget-header" style="display:flex;flex-direction:row;align-items:center;gap:0.5rem;">
+                <input type="checkbox" name="center-vertically" {{ if .PageSettings.CenterVertically }}checked{{ end }}>
+                <span>Center vertically</span>
+            </label>
+
+            <div class="flex gap-10 margin-top-10">
+                <button type="submit">Save</button>
+                <a class="color-subdue" style="align-self:center;" href="{{ .App.Config.Server.BaseURL }}/edit/pages/{{ .Page.Slug }}">Cancel</a>
+            </div>
+        </form>
+    </main>
+    {{ template "footer.html" . }}
+</div>
+{{- end }}

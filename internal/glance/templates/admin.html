@@ -21,6 +21,15 @@
                     <span class="color-subdue"> — {{ .WidgetCount }} widget{{ if ne .WidgetCount 1 }}s{{ end }}</span>
                     <div class="color-subdue size-h5">/{{ .Slug }}</div>
                 </div>
+                <form method="post" action="{{ $.App.Config.Server.BaseURL }}/edit/api/pages/{{ .Slug }}/move?dir=up">
+                    <button type="submit" {{ if .IsFirst }}disabled{{ end }} title="Move up">↑</button>
+                </form>
+                <form method="post" action="{{ $.App.Config.Server.BaseURL }}/edit/api/pages/{{ .Slug }}/move?dir=down">
+                    <button type="submit" {{ if .IsLast }}disabled{{ end }} title="Move down">↓</button>
+                </form>
+                <a href="{{ $.App.Config.Server.BaseURL }}/edit/pages/{{ .Slug }}/settings" title="Page settings">
+                    <button type="button">Settings</button>
+                </a>
                 <form method="post" action="{{ $.App.Config.Server.BaseURL }}/edit/api/pages/{{ .Slug }}/delete"
                       onsubmit="return confirm('Delete page &quot;{{ .Title }}&quot; and all its widgets?');">
                     <button type="submit" class="color-negative">Delete</button>

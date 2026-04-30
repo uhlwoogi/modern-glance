@@ -966,6 +966,135 @@ func (a *application) handleAdminWidgetSchemas(w http.ResponseWriter, r *http.Re
 	}
 }
 
+// ---------- page settings + reorder ----------
+
+// pageMetadataKeys is the set of page-level keys the settings form handles.
+// Anything else (head-widgets, columns) stays untouched on save.
+var pageMetadataKeys = map[string]bool{
+	"name":                     true,
+	"slug":                     true,
+	"width":                    true,
+	"desktop-navigation-width": true,
+	"show-mobile-header":       true,
+	"hide-desktop-navigation":  true,
+	"center-vertically":        true,
+}
+
+func (a *application) handleAdminUpdatePageFields(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	slug := r.PathValue("page")
+	pageIdx, ok := a.freshPageIndexBySlug(slug)
+	if !ok {
+		a.handleNotFound(w, r)
+		return
+	}
+
+	editor, err := loadConfigEditor(a.ConfigPath)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	pageNode, err := editor.pageNodeAt(pageIdx)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	fields := make(map[string]interface{})
+	for key := range pageMetadataKeys {
+		if !r.Form.Has(key) {
+			continue
+		}
+		raw := strings.TrimSpace(r.FormValue(key))
+		switch key {
+		case "show-mobile-header", "hide-desktop-navigation", "center-vertically":
+			fields[key] = raw == "on" || raw == "true" || raw == "1"
+		default:
+			if raw == "" {
+				fields[key] = nil // remove the key from yaml
+			} else {
+				fields[key] = raw
+			}
+		}
+	}
+	// Browsers don't post unchecked checkboxes; explicitly set them false so
+	// turning a flag off persists.
+	for _, key := range []string{"show-mobile-header", "hide-desktop-navigation", "center-vertically"} {
+		if _, set := fields[key]; !set {
+			fields[key] = false
+		}
+	}
+
+	if name, ok := fields["name"].(string); !ok || name == "" {
+		adminError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if err := applyFieldsToWidget(pageNode, fields); err != nil {
+		adminError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := editor.save(); err != nil {
+		adminError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// The slug may have changed if the user edited it (or the title without an
+	// explicit slug); redirect to the page list rather than a possibly-stale URL.
+	http.Redirect(w, r, a.Config.Server.BaseURL+"/edit", http.StatusSeeOther)
+}
+
+func (a *application) handleAdminMovePage(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	slug := r.PathValue("page")
+	idx, ok := a.freshPageIndexBySlug(slug)
+	if !ok {
+		a.handleNotFound(w, r)
+		return
+	}
+	delta := 0
+	switch r.URL.Query().Get("dir") {
+	case "up":
+		delta = -1
+	case "down":
+		delta = 1
+	default:
+		adminError(w, http.StatusBadRequest, "dir must be up|down")
+		return
+	}
+
+	editor, err := loadConfigEditor(a.ConfigPath)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	pages, err := editor.pagesNode(false)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	target := idx + delta
+	if idx < 0 || idx >= len(pages.Content) || target < 0 || target >= len(pages.Content) {
+		adminError(w, http.StatusBadRequest, "cannot move further in that direction")
+		return
+	}
+	pages.Content[idx], pages.Content[target] = pages.Content[target], pages.Content[idx]
+
+	if err := editor.save(); err != nil {
+		adminError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	http.Redirect(w, r, a.Config.Server.BaseURL+"/edit", http.StatusSeeOther)
+}
+
 // ---------- column endpoints ----------
 
 func (a *application) editColumns(slug string) (*configEditor, *yaml.Node, error) {

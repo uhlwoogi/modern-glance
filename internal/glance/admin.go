@@ -10,9 +10,10 @@ import (
 )
 
 var (
-	adminIndexTemplate  = mustParseTemplate("admin.html", "document.html", "footer.html")
-	adminPageTemplate   = mustParseTemplate("admin-page.html", "document.html", "footer.html")
-	adminWidgetTemplate = mustParseTemplate("admin-widget.html", "document.html", "footer.html")
+	adminIndexTemplate        = mustParseTemplate("admin.html", "document.html", "footer.html")
+	adminPageTemplate         = mustParseTemplate("admin-page.html", "document.html", "footer.html")
+	adminWidgetTemplate       = mustParseTemplate("admin-widget.html", "document.html", "footer.html")
+	adminPageSettingsTemplate = mustParseTemplate("admin-page-settings.html", "document.html", "footer.html")
 )
 
 // allWidgetTypes mirrors the switch in newWidget(). Aliases ("stocks") omitted.
@@ -208,6 +209,8 @@ type adminPageSummary struct {
 	Title       string
 	Slug        string
 	WidgetCount int
+	IsFirst     bool
+	IsLast      bool
 }
 
 type adminPageDetail struct {
@@ -215,6 +218,16 @@ type adminPageDetail struct {
 	Slug        string
 	HeadWidgets []adminWidgetView
 	Columns     []adminColumnView
+}
+
+type adminPageSettings struct {
+	Name                   string
+	Slug                   string
+	Width                  string
+	DesktopNavigationWidth string
+	ShowMobileHeader       bool
+	HideDesktopNavigation  bool
+	CenterVertically       bool
 }
 
 type adminTemplateData struct {
@@ -232,6 +245,10 @@ type adminTemplateData struct {
 	DocsURL        string
 	IsNew          bool
 	ErrorMessage   string
+
+	PageSettings *adminPageSettings
+	IsFirstPage  bool
+	IsLastPage   bool
 }
 
 func (a *application) handleAdminIndex(w http.ResponseWriter, r *http.Request) {
@@ -240,6 +257,7 @@ func (a *application) handleAdminIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pages := a.freshPagesFromDisk()
+	last := len(pages) - 1
 	summaries := make([]adminPageSummary, 0, len(pages))
 	for p := range pages {
 		page := &pages[p]
@@ -251,6 +269,8 @@ func (a *application) handleAdminIndex(w http.ResponseWriter, r *http.Request) {
 			Title:       page.Title,
 			Slug:        page.Slug,
 			WidgetCount: count,
+			IsFirst:     p == 0,
+			IsLast:      p == last,
 		})
 	}
 
@@ -361,6 +381,36 @@ func (a *application) handleAdminWidget(w http.ResponseWriter, r *http.Request) 
 		yamlText:    yamlText,
 		loadError:   loadErr,
 	})
+}
+
+func (a *application) handleAdminPageSettings(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	pages := a.freshPagesFromDisk()
+	page, idx, exists := findPageBySlug(pages, r.PathValue("page"))
+	if !exists {
+		a.handleNotFound(w, r)
+		return
+	}
+	settings := &adminPageSettings{
+		Name:                   page.Title,
+		Slug:                   page.Slug,
+		Width:                  page.Width,
+		DesktopNavigationWidth: page.DesktopNavigationWidth,
+		ShowMobileHeader:       page.ShowMobileHeader,
+		HideDesktopNavigation:  page.HideDesktopNavigation,
+		CenterVertically:       page.CenterVertically,
+	}
+	data := adminTemplateData{
+		App:          a,
+		Page:         &adminPageDetail{Title: page.Title, Slug: page.Slug},
+		PageSettings: settings,
+		IsFirstPage:  idx == 0,
+		IsLastPage:   idx == len(pages)-1,
+	}
+	a.populateTemplateRequestData(&data.Request, r)
+	renderAdminTemplate(w, adminPageSettingsTemplate, data)
 }
 
 func (a *application) handleAdminNewWidget(w http.ResponseWriter, r *http.Request) {

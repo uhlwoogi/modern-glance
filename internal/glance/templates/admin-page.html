@@ -8,7 +8,12 @@
         <div class="margin-bottom-15">
             <a class="color-subdue" href="{{ .App.Config.Server.BaseURL }}/edit">← Edit</a>
         </div>
-        <h1 class="size-h1">{{ .Page.Title }}</h1>
+        <div class="flex items-center gap-10">
+            <h1 class="size-h1 grow">{{ .Page.Title }}</h1>
+            <a href="{{ .App.Config.Server.BaseURL }}/edit/pages/{{ .Page.Slug }}/settings">
+                <button type="button">Page settings</button>
+            </a>
+        </div>
         <p class="color-subdue margin-bottom-25">/{{ .Page.Slug }}</p>
 
         {{- if .Page.HeadWidgets }}
