@@ -114,7 +114,7 @@ func serveApp(configPath string) error {
 			return
 		}
 
-		app, err := newApplication(config)
+		app, err := newApplication(config, configPath)
 		if err != nil {
 			log.Printf("Failed to create application: %v", err)
 
@@ -165,7 +165,7 @@ func serveApp(configPath string) error {
 			return fmt.Errorf("validating config file: %w", err)
 		}
 
-		app, err := newApplication(config)
+		app, err := newApplication(config, configPath)
 		if err != nil {
 			return fmt.Errorf("creating application: %w", err)
 		}

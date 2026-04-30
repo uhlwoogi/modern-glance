@@ -1,0 +1,94 @@
+{{- template "document.html" . }}
+
+{{- define "document-title" }}{{ if .IsNew }}Add {{ .Widget.Type }}{{ else }}Edit {{ if .Widget.Title }}{{ .Widget.Title }}{{ else }}{{ .Widget.Type }}{{ end }}{{ end }} - {{ .App.Config.Branding.AppName }}{{ end }}
+
+{{- define "document-body" }}
+<div class="flex flex-column body-content">
+    <main class="content-bounds" style="padding-block: 2rem;">
+        <div class="margin-bottom-15">
+            <a class="color-subdue" href="{{ .App.Config.Server.BaseURL }}/edit">← Edit</a>
+            <span class="color-subdue"> / </span>
+            <a class="color-subdue" href="{{ .App.Config.Server.BaseURL }}/edit/pages/{{ .Page.Slug }}">{{ .Page.Title }}</a>
+        </div>
+        <h1 class="size-h1">
+            {{- if .IsNew -}}
+            Add widget <span class="color-subdue size-h4">— {{ .Widget.Type }}</span>
+            {{- else -}}
+            {{ if .Widget.Title }}{{ .Widget.Title }}{{ else }}<em>(untitled)</em>{{ end }}
+            <span class="color-subdue size-h4">— {{ .Widget.Type }}</span>
+            {{- end }}
+        </h1>
+        <p class="color-subdue margin-bottom-25">
+            {{- if .IsNew -}}
+            New widget for column {{ .Widget.ColumnIndex }}
+            {{- else if eq .Widget.ColumnIndex -1 -}}
+            head widget #{{ .Widget.WidgetIndex }}
+            {{- else -}}
+            column {{ .Widget.ColumnIndex }}, widget #{{ .Widget.WidgetIndex }}
+            {{- end }}
+        </p>
+
+        {{- if .ErrorMessage }}
+        <div class="margin-bottom-15" style="padding:1rem;background:#fee;border:1px solid #c00;border-radius:4px;color:#700;">
+            <strong>Couldn't save:</strong>
+            <pre style="white-space:pre-wrap;margin:0.5rem 0 0;">{{ .ErrorMessage }}</pre>
+        </div>
+        {{- end }}
+
+        {{- if .LoadError }}
+        <div class="margin-bottom-15" style="padding:1rem;background:#fee;border:1px solid #c00;border-radius:4px;">
+            <strong>Can't load YAML:</strong>
+            <pre style="white-space:pre-wrap;margin-top:0.5rem;">{{ .LoadError }}</pre>
+        </div>
+        {{- end }}
+
+        {{- if or .WidgetYAML .IsNew }}
+        <details class="margin-bottom-15" style="background:var(--color-widget-content-frame-background);border:1px solid var(--color-widget-content-border);border-radius:4px;padding:0.75rem;" {{ if .IsNew }}open{{ end }}>
+            <summary style="cursor:pointer;font-weight:bold;">How to edit a {{ if .Widget.Type }}<code>{{ .Widget.Type }}</code>{{ else }}widget{{ end }}</summary>
+            <div style="margin-top:0.75rem;line-height:1.6;">
+                {{- if .WidgetExample }}
+                <p style="margin-bottom:0.25rem;">A working example of a <code>{{ .Widget.Type }}</code> widget:</p>
+                <pre style="margin:0 0 0.75rem;padding:0.5rem;background:rgba(0,0,0,0.15);border-radius:3px;font-size:0.85rem;overflow:auto;">{{- .WidgetExample -}}</pre>
+                {{- end }}
+                {{- if .FieldReference }}
+                <p style="margin-bottom:0.25rem;">All fields supported by <code>{{ .Widget.Type }}</code> (defaults shown — fields with <code>yaml:"-"</code> tags or empty defaults still apply):</p>
+                <pre style="margin:0 0 0.75rem;padding:0.5rem;background:rgba(0,0,0,0.15);border-radius:3px;font-size:0.85rem;overflow:auto;max-height:18rem;">{{- .FieldReference -}}</pre>
+                {{- end }}
+                <p style="margin-bottom:0.25rem;">YAML quick tips:</p>
+                <ul style="padding-left:1.5rem;margin:0 0 0.75rem;">
+                    <li>Indentation matters — use two spaces per level, never tabs.</li>
+                    <li>Strings, numbers, booleans go inline: <code>limit: 10</code>, <code>hide-header: true</code>.</li>
+                    <li>List items start with <code>-</code> and align under the parent key.</li>
+                    <li>Pull secrets from the environment: <code>token: ${env:MY_TOKEN}</code>.</li>
+                </ul>
+                <p>Validation runs before saving — if the YAML is invalid, your file isn't touched and the error appears above.</p>
+                {{- if .Widget.Type }}
+                <p>Full upstream reference: <a href="{{ .DocsURL }}" target="_blank" rel="noreferrer">{{ .Widget.Type }} docs ↗</a></p>
+                {{- end }}
+            </div>
+        </details>
+
+        <form method="post"
+              action="{{- if .IsNew -}}
+                  {{ .App.Config.Server.BaseURL }}/edit/api/pages/{{ .Page.Slug }}/widgets/{{ .Widget.ColumnIndex }}/new
+              {{- else -}}
+                  {{ .App.Config.Server.BaseURL }}/edit/api/pages/{{ .Page.Slug }}/widgets/{{ .Widget.ColumnIndex }}/{{ .Widget.WidgetIndex }}
+              {{- end }}">
+            <label for="widget-yaml" class="form-label widget-header margin-bottom-10">Widget YAML</label>
+            <textarea id="widget-yaml" name="yaml" rows="20" spellcheck="false"
+                      style="width:100%;font-family:monospace;font-size:0.9rem;padding:0.75rem;background:var(--color-widget-content-frame-background);color:var(--color-text-base);border:1px solid var(--color-widget-content-border);border-radius:4px;">{{- .WidgetYAML -}}</textarea>
+            <div class="flex gap-10 margin-top-10">
+                <button type="submit">{{ if .IsNew }}Create{{ else }}Save{{ end }}</button>
+                <a href="{{ .App.Config.Server.BaseURL }}/edit/pages/{{ .Page.Slug }}" class="color-subdue" style="align-self:center;">Cancel</a>
+            </div>
+            {{- if not .IsNew }}
+            <p class="color-subdue size-h5" style="margin-top:0.5rem;">
+                You can change <code>type:</code> here to convert this widget to any type.
+            </p>
+            {{- end }}
+        </form>
+        {{- end }}
+    </main>
+    {{ template "footer.html" . }}
+</div>
+{{- end }}

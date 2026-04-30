@@ -28,9 +28,10 @@ const STATIC_ASSETS_CACHE_DURATION = 24 * time.Hour
 var reservedPageSlugs = []string{"login", "logout"}
 
 type application struct {
-	Version   string
-	CreatedAt time.Time
-	Config    config
+	Version    string
+	CreatedAt  time.Time
+	Config     config
+	ConfigPath string
 
 	parsedManifest []byte
 
@@ -44,11 +45,12 @@ type application struct {
 	failedAuthAttempts     map[string]*failedAuthAttempt
 }
 
-func newApplication(c *config) (*application, error) {
+func newApplication(c *config, configPath string) (*application, error) {
 	app := &application{
 		Version:    buildVersion,
 		CreatedAt:  time.Now(),
 		Config:     *c,
+		ConfigPath: configPath,
 		slugToPage: make(map[string]*page),
 		widgetByID: make(map[uint64]widget),
 	}
@@ -449,6 +451,18 @@ func (a *application) server() (func() error, func() error) {
 	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
+
+	mux.HandleFunc("GET /edit", a.handleAdminIndex)
+	mux.HandleFunc("GET /edit/pages/{page}", a.handleAdminPage)
+	mux.HandleFunc("GET /edit/pages/{page}/widgets/{col}/{idx}", a.handleAdminWidget)
+
+	mux.HandleFunc("POST /edit/api/pages", a.handleAdminAddPage)
+	mux.HandleFunc("POST /edit/api/pages/{page}/delete", a.handleAdminDeletePage)
+	mux.HandleFunc("GET /edit/pages/{page}/widgets/{col}/new", a.handleAdminNewWidget)
+	mux.HandleFunc("POST /edit/api/pages/{page}/widgets/{col}/new", a.handleAdminCreateWidget)
+	mux.HandleFunc("POST /edit/api/pages/{page}/widgets/{col}/{idx}", a.handleAdminEditWidget)
+	mux.HandleFunc("POST /edit/api/pages/{page}/widgets/{col}/{idx}/delete", a.handleAdminDeleteWidget)
+	mux.HandleFunc("POST /edit/api/pages/{page}/widgets/{col}/{idx}/move", a.handleAdminMoveWidget)
 
 	if a.RequiresAuth {
 		mux.HandleFunc("GET /login", a.handleLoginPageRequest)

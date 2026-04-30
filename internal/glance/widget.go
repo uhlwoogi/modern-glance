@@ -128,6 +128,7 @@ type widget interface {
 	Render() template.HTML
 	GetType() string
 	GetID() uint64
+	GetTitle() string
 
 	initialize() error
 	requiresUpdate(*time.Time) bool
@@ -208,6 +209,10 @@ func (widget *widgetBase) handleRequest(w http.ResponseWriter, r *http.Request) 
 
 func (w *widgetBase) GetType() string {
 	return w.Type
+}
+
+func (w *widgetBase) GetTitle() string {
+	return w.Title
 }
 
 func (w *widgetBase) setProviders(providers *widgetProviders) {

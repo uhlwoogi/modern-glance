@@ -43,6 +43,13 @@
                 </div>
             </div>
             {{ end }}
+            {{- if or .App.RequiresAuth .App.Config.Admin.AllowWithoutAuth }}
+            <a class="block self-center" href="{{ .App.Config.Server.BaseURL }}/edit" title="Edit dashboard">
+                <svg class="logout-button" stroke="var(--color-text-subdue)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                </svg>
+            </a>
+            {{- end }}
             {{- if .App.RequiresAuth }}
             <a class="block self-center" href="{{ .App.Config.Server.BaseURL }}/logout" title="Logout">
                 <svg class="logout-button" stroke="var(--color-text-subdue)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
@@ -90,6 +97,15 @@
                     </svg>
                 </div>
             </div>
+            {{ end }}
+
+            {{ if or .App.RequiresAuth .App.Config.Admin.AllowWithoutAuth }}
+            <a href="{{ .App.Config.Server.BaseURL }}/edit" class="flex justify-between items-center">
+                <div class="size-h3">Edit dashboard</div>
+                <svg class="ui-icon" stroke="var(--color-text-subdue)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                </svg>
+            </a>
             {{ end }}
 
             {{ if .App.RequiresAuth }}

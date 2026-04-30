@@ -1,0 +1,79 @@
+{{- template "document.html" . }}
+
+{{- define "document-title" }}Edit {{ .Page.Title }} - {{ .App.Config.Branding.AppName }}{{ end }}
+
+{{- define "document-body" }}
+<div class="flex flex-column body-content">
+    <main class="content-bounds" style="padding-block: 2rem;">
+        <div class="margin-bottom-15">
+            <a class="color-subdue" href="{{ .App.Config.Server.BaseURL }}/edit">← Edit</a>
+        </div>
+        <h1 class="size-h1">{{ .Page.Title }}</h1>
+        <p class="color-subdue margin-bottom-25">/{{ .Page.Slug }}</p>
+
+        {{- if .Page.HeadWidgets }}
+        <h2 class="size-h2 margin-bottom-10">Head widgets</h2>
+        <ul class="list list-gap-10 margin-bottom-25">
+            {{- range .Page.HeadWidgets }}
+            <li>
+                <a class="color-primary" href="{{ $.App.Config.Server.BaseURL }}/edit/pages/{{ $.Page.Slug }}/widgets/-1/{{ .WidgetIndex }}">
+                    {{ if .Title }}{{ .Title }}{{ else }}<em>(untitled)</em>{{ end }}
+                </a>
+                <span class="color-subdue"> — {{ .Type }}</span>
+            </li>
+            {{- end }}
+        </ul>
+        {{- end }}
+
+        <h2 class="size-h2 margin-bottom-10">Columns</h2>
+        {{- if not .Page.Columns }}
+        <p class="color-subdue">No columns configured on this page. Edit the YAML manually to add columns — column editing comes in a later phase.</p>
+        {{- end }}
+        {{- range $colIdx, $col := .Page.Columns }}
+        <section class="margin-bottom-25">
+            <h3 class="size-h3 margin-bottom-10">
+                Column {{ $col.Index }}
+                <span class="color-subdue size-h5">({{ if $col.Size }}{{ $col.Size }}{{ else }}default{{ end }})</span>
+            </h3>
+            {{- if not $col.Widgets }}
+            <p class="color-subdue">No widgets in this column.</p>
+            {{- else }}
+            <ul class="list list-gap-10 margin-bottom-15">
+                {{- range $col.Widgets }}
+                <li class="flex items-center gap-10">
+                    <div class="grow">
+                        <a class="color-primary" href="{{ $.App.Config.Server.BaseURL }}/edit/pages/{{ $.Page.Slug }}/widgets/{{ .ColumnIndex }}/{{ .WidgetIndex }}">
+                            {{ if .Title }}{{ .Title }}{{ else }}<em>(untitled)</em>{{ end }}
+                        </a>
+                        <span class="color-subdue"> — {{ .Type }}</span>
+                    </div>
+                    <form method="post" action="{{ $.App.Config.Server.BaseURL }}/edit/api/pages/{{ $.Page.Slug }}/widgets/{{ .ColumnIndex }}/{{ .WidgetIndex }}/move?dir=up">
+                        <button type="submit" {{ if .IsFirst }}disabled{{ end }}>↑</button>
+                    </form>
+                    <form method="post" action="{{ $.App.Config.Server.BaseURL }}/edit/api/pages/{{ $.Page.Slug }}/widgets/{{ .ColumnIndex }}/{{ .WidgetIndex }}/move?dir=down">
+                        <button type="submit" {{ if .IsLast }}disabled{{ end }}>↓</button>
+                    </form>
+                    <form method="post" action="{{ $.App.Config.Server.BaseURL }}/edit/api/pages/{{ $.Page.Slug }}/widgets/{{ .ColumnIndex }}/{{ .WidgetIndex }}/delete"
+                          onsubmit="return confirm('Delete this widget?');">
+                        <button type="submit" class="color-negative">Delete</button>
+                    </form>
+                </li>
+                {{- end }}
+            </ul>
+            {{- end }}
+
+            <form method="get" action="{{ $.App.Config.Server.BaseURL }}/edit/pages/{{ $.Page.Slug }}/widgets/{{ $col.Index }}/new" class="flex gap-10 items-center">
+                <select name="type" required>
+                    <option value="">— add widget —</option>
+                    {{- range $.WidgetTypes }}
+                    <option value="{{ . }}">{{ . }}</option>
+                    {{- end }}
+                </select>
+                <button type="submit">Configure & add</button>
+            </form>
+        </section>
+        {{- end }}
+    </main>
+    {{ template "footer.html" . }}
+</div>
+{{- end }}

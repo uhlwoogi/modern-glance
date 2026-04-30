@@ -65,6 +65,12 @@ type config struct {
 		AppBackgroundColor string        `yaml:"app-background-color"`
 	} `yaml:"branding"`
 
+	Admin struct {
+		// AllowWithoutAuth permits access to /admin even when auth.users is empty.
+		// Off by default because admin can rewrite the config file.
+		AllowWithoutAuth bool `yaml:"allow-without-auth"`
+	} `yaml:"admin"`
+
 	Pages []page `yaml:"pages"`
 }
 
