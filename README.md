@@ -11,6 +11,8 @@
 
 > **Upstream credit:** All core functionality — widgets, theming, layout engine, hot-reload — is the work of the [Glance](https://github.com/glanceapp/glance) project and its contributors. This fork adds an editing UI on top and nothing else. If you find Glance useful, consider [sponsoring the upstream project](https://github.com/sponsors/glanceapp).
 
+> **⚠️ Vibe coded:** The editing UI in this fork was built entirely with AI assistance and has not been rigorously tested. It may have bugs, edge cases, or security issues — particularly around config file handling. Use it on a trusted network, keep backups, and don't be surprised if something breaks. PRs welcome.
+
 ---
 
 ## What's added
