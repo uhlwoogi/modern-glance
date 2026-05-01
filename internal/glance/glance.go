@@ -457,6 +457,8 @@ func (a *application) server() (func() error, func() error) {
 	mux.HandleFunc("GET /edit/pages/{page}/settings", a.handleAdminPageSettings)
 	mux.HandleFunc("GET /edit/site-settings", a.handleAdminSiteSettings)
 	mux.HandleFunc("GET /edit/theme-settings", a.handleAdminThemeSettings)
+	mux.HandleFunc("GET /edit/theme-settings/presets/new", a.handleAdminThemePreset)
+	mux.HandleFunc("GET /edit/theme-settings/presets/{key}", a.handleAdminThemePreset)
 	mux.HandleFunc("GET /edit/pages/{page}/widgets/{col}/{idx}", a.handleAdminWidget)
 
 	mux.HandleFunc("POST /edit/api/pages", a.handleAdminAddPage)
@@ -483,6 +485,9 @@ func (a *application) server() (func() error, func() error) {
 	mux.HandleFunc("POST /edit/api/restore/{n}", a.handleAdminRestoreFromBackup)
 	mux.HandleFunc("POST /edit/api/site-settings", a.handleAdminUpdateSiteSettings)
 	mux.HandleFunc("POST /edit/api/theme-settings", a.handleAdminUpdateTheme)
+	mux.HandleFunc("POST /edit/api/theme-presets", a.handleAdminCreateOrUpdatePreset)
+	mux.HandleFunc("POST /edit/api/theme-presets/{key}", a.handleAdminCreateOrUpdatePreset)
+	mux.HandleFunc("POST /edit/api/theme-presets/{key}/delete", a.handleAdminDeletePreset)
 
 	if a.RequiresAuth {
 		mux.HandleFunc("GET /login", a.handleLoginPageRequest)

@@ -9,10 +9,10 @@
             <a class="color-subdue" href="{{ .App.Config.Server.BaseURL }}/edit">← Edit</a>
         </div>
         <h1 class="size-h1 margin-bottom-15">Theme</h1>
+
+        <h2 class="size-h3 margin-bottom-10" style="margin-top:0;">Default theme</h2>
         <p class="color-subdue margin-bottom-25">
-            Colors are stored as HSL in the YAML, but the picker below shows hex
-            for convenience — Glance converts on save. Theme presets and custom CSS
-            beyond the file path still need YAML.
+            Colors are stored as HSL in the YAML, but the picker below shows hex for convenience.
         </p>
 
         <form method="post" action="{{ .App.Config.Server.BaseURL }}/edit/api/theme-settings"
@@ -74,6 +74,61 @@
                 <a class="color-subdue" style="align-self:center;" href="{{ .App.Config.Server.BaseURL }}/edit">Cancel</a>
             </div>
         </form>
+
+        {{/* ── Presets ── */}}
+        <div style="margin-top:2.5rem;max-width:36rem;">
+            <div class="flex" style="justify-content:space-between;align-items:baseline;margin-bottom:0.75rem;">
+                <h2 class="size-h3" style="margin:0;">Presets</h2>
+                <a href="{{ .App.Config.Server.BaseURL }}/edit/theme-settings/presets/new"
+                   style="font-size:0.85rem;">+ Add preset</a>
+            </div>
+
+            {{ if .ThemeSettings.Presets }}
+            <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                {{ range .ThemeSettings.Presets }}
+                <div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;border:1px solid var(--color-widget-content-border);border-radius:4px;">
+                    <div style="flex-shrink:0;pointer-events:none;">{{ .PreviewHTML }}</div>
+                    <span style="flex:1;font-weight:500;">{{ .Key }}</span>
+                    <a href="{{ $.App.Config.Server.BaseURL }}/edit/theme-settings/presets/{{ .Key }}"
+                       style="font-size:0.85rem;">Edit</a>
+                    <form method="post" action="{{ $.App.Config.Server.BaseURL }}/edit/api/theme-presets/{{ .Key }}/delete"
+                          style="display:inline;" onsubmit="return confirm('Delete preset {{ .Key }}?')">
+                        <button type="submit" class="color-negative"
+                                style="background:none;border:none;cursor:pointer;font-size:0.85rem;padding:0;">Delete</button>
+                    </form>
+                </div>
+                {{ end }}
+            </div>
+            {{ else }}
+            <p class="color-subdue size-h5">No custom presets yet. Add one below or import from the built-in catalog.</p>
+            {{ end }}
+        </div>
+
+        {{/* ── Built-in catalog ── */}}
+        <div style="margin-top:2rem;max-width:36rem;">
+            <details>
+                <summary class="size-h3" style="cursor:pointer;user-select:none;margin-bottom:0.75rem;">
+                    Built-in theme catalog
+                </summary>
+                <p class="color-subdue size-h5 margin-bottom-15">
+                    Click a theme to open the preset form pre-filled with its colors. You can rename it before saving.
+                </p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:0.5rem;">
+                    {{ range .ThemeSettings.CatalogThemes }}
+                    {{- $cm := "" }}{{- if .CM }}{{- $cm = printf "%g" .CM }}{{ end }}
+                    {{- $tsm := "" }}{{- if .TSM }}{{- $tsm = printf "%g" .TSM }}{{ end }}
+                    {{- $light := "" }}{{- if .Light }}{{- $light = "true" }}{{ end }}
+                    <a href="{{ $.App.Config.Server.BaseURL }}/edit/theme-settings/presets/new?name={{ .Key }}&bg={{ .BgHex }}&primary={{ .PrimaryHex }}&positive={{ .PositiveHex }}&negative={{ .NegativeHex }}&light={{ $light }}&cm={{ $cm }}&tsm={{ $tsm }}"
+                       style="text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:0.4rem;padding:0.6rem;border:1px solid var(--color-widget-content-border);border-radius:4px;transition:border-color 0.15s;"
+                       onmouseover="this.style.borderColor='var(--color-primary)'" onmouseout="this.style.borderColor='var(--color-widget-content-border)'">
+                        <div style="pointer-events:none;">{{ .PreviewHTML }}</div>
+                        <span class="size-h5" style="text-align:center;color:var(--color-text-base);">{{ .Name }}</span>
+                    </a>
+                    {{ end }}
+                </div>
+            </details>
+        </div>
+
     </main>
     {{ template "footer.html" . }}
 </div>

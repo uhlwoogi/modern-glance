@@ -27,6 +27,11 @@ pages:
           widgets:
             - type: calendar
               first-day-of-week: monday
+            - type: group
+              widgets:
+                - type: hacker-news
+        - size: full
+          widgets:
             - type: rss
               limit: 10
               collapse-after: 3
@@ -34,29 +39,12 @@ pages:
               feeds:
                 - url: https://www.techmeme.com/feed.xml
                   title: TechMeme
-            - type: server-stats
-        - size: full
-          widgets:
-            - type: group
-              widgets:
-                - type: hacker-news
-            - type: videos
-              channels:
-                - UCXuqSBlHAE6Xw-yeJA0Tunw # Linus Tech Tips
-                - UCR-DXc1voovS8nhAvccRZhg # Jeff Geerling
-                - UCsBjURrPoezykLs9EqgamOA # Fireship
-                - UCBJycsmduvYEL83R_U4JriQ # Marques Brownlee
-                - UCHnyfMqiRRG1u-2MsSQLbXA # Veritasium
-            - type: group
-              widgets:
-                - type: reddit
-                  subreddit: technology
-                  show-thumbnails: true
-                - type: reddit
-                  subreddit: selfhosted
-                  show-thumbnails: true
         - size: small
           widgets:
+            - type: markets
+              markets:
+                - symbol: AMZN
+                  name: Amazon.com, Inc.
             - type: weather
               location: Houston, US
               units: imperial
@@ -66,10 +54,14 @@ pages:
 
               hide-location: true
               show-area-name: false
-            - type: markets
-              markets:
-                - symbol: AMZN
-                  name: Amazon.com, Inc.
+            - type: group
+              widgets:
+                - type: reddit
+                  subreddit: technology
+                  show-thumbnails: true
+                - type: reddit
+                  subreddit: selfhosted
+                  show-thumbnails: true
 
 # Add more pages here:
 # - name: Your page name

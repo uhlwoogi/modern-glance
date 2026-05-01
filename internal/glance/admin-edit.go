@@ -1179,6 +1179,133 @@ func (a *application) handleAdminUpdateTheme(w http.ResponseWriter, r *http.Requ
 	http.Redirect(w, r, a.Config.Server.BaseURL+"/edit/theme-settings", http.StatusSeeOther)
 }
 
+// ---------- theme presets ----------
+
+func removeKeyFromMapping(m *yaml.Node, key string) {
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == key {
+			m.Content = append(m.Content[:i], m.Content[i+2:]...)
+			return
+		}
+	}
+}
+
+func (a *application) handleAdminCreateOrUpdatePreset(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	key := r.PathValue("key")
+	if key == "" {
+		key = strings.TrimSpace(r.FormValue("name"))
+	}
+	if key == "" {
+		adminError(w, http.StatusBadRequest, "preset name is required")
+		return
+	}
+	for _, ch := range key {
+		if ch == ' ' || ch == '\t' || ch == '\n' || ch == ':' || ch == '{' || ch == '}' || ch == '[' || ch == ']' || ch == '|' || ch == '>' || ch == '&' || ch == '*' {
+			adminError(w, http.StatusBadRequest, "preset name must not contain spaces or special characters")
+			return
+		}
+	}
+
+	editor, err := loadConfigEditor(a.ConfigPath)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	theme, err := findOrCreateKey(editor.topMapping(), "theme", true, yaml.MappingNode)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	presets, err := findOrCreateKey(theme, "presets", true, yaml.MappingNode)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	preset, err := findOrCreateKey(presets, key, true, yaml.MappingNode)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	fields := make(map[string]interface{})
+	for fkey := range themeColorKeys {
+		raw := strings.TrimSpace(r.FormValue(fkey))
+		if raw == "" {
+			fields[fkey] = nil
+			continue
+		}
+		h, s, l, err := hexToHSL(raw)
+		if err != nil {
+			adminError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		fields[fkey] = hslToYAMLString(h, s, l)
+	}
+	for fkey := range themeNumberKeys {
+		raw := strings.TrimSpace(r.FormValue(fkey))
+		if raw == "" {
+			fields[fkey] = nil
+			continue
+		}
+		f, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			adminError(w, http.StatusBadRequest, fmt.Sprintf("%s: %v", fkey, err))
+			return
+		}
+		fields[fkey] = f
+	}
+	raw := strings.TrimSpace(r.FormValue("light"))
+	fields["light"] = raw == "on" || raw == "true" || raw == "1"
+
+	if err := applyFieldsToWidget(preset, fields); err != nil {
+		adminError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := editor.save(); err != nil {
+		adminError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	http.Redirect(w, r, a.Config.Server.BaseURL+"/edit/theme-settings", http.StatusSeeOther)
+}
+
+func (a *application) handleAdminDeletePreset(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	key := r.PathValue("key")
+
+	editor, err := loadConfigEditor(a.ConfigPath)
+	if err != nil {
+		adminError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	theme, err := findOrCreateKey(editor.topMapping(), "theme", false, yaml.MappingNode)
+	if err != nil {
+		http.Redirect(w, r, a.Config.Server.BaseURL+"/edit/theme-settings", http.StatusSeeOther)
+		return
+	}
+	presetsNode, err := findOrCreateKey(theme, "presets", false, yaml.MappingNode)
+	if err != nil {
+		http.Redirect(w, r, a.Config.Server.BaseURL+"/edit/theme-settings", http.StatusSeeOther)
+		return
+	}
+	removeKeyFromMapping(presetsNode, key)
+
+	if err := editor.save(); err != nil {
+		adminError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	http.Redirect(w, r, a.Config.Server.BaseURL+"/edit/theme-settings", http.StatusSeeOther)
+}
+
 // ---------- site settings (branding) ----------
 
 var brandingFieldKeys = []string{

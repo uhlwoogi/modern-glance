@@ -19,6 +19,7 @@ var (
 	adminPageSettingsTemplate = mustParseTemplate("admin-page-settings.html", "document.html", "footer.html")
 	adminSiteSettingsTemplate  = mustParseTemplate("admin-site-settings.html", "document.html", "footer.html")
 	adminThemeSettingsTemplate = mustParseTemplate("admin-theme-settings.html", "document.html", "footer.html")
+	adminThemePresetTemplate   = mustParseTemplate("admin-theme-preset.html", "document.html", "footer.html")
 )
 
 // allWidgetTypes mirrors the switch in newWidget(). Aliases ("stocks") omitted.
@@ -264,6 +265,7 @@ type adminTemplateData struct {
 
 	SiteSettings  *adminSiteSettings
 	ThemeSettings *adminThemeSettings
+	PresetForm    *adminPresetFormData
 
 	Backups []adminBackupSummary
 }
@@ -278,6 +280,118 @@ type adminThemeSettings struct {
 	ContrastMultiplier       float32
 	TextSaturationMultiplier float32
 	CustomCSSFile            string
+	Presets                  []adminPresetItem
+	CatalogThemes            []catalogTheme
+}
+
+type adminPresetItem struct {
+	Key                      string
+	BackgroundColorHex       string
+	PrimaryColorHex          string
+	PositiveColorHex         string
+	NegativeColorHex         string
+	Light                    bool
+	ContrastMultiplier       float32
+	TextSaturationMultiplier float32
+	PreviewHTML              template.HTML
+}
+
+type adminPresetFormData struct {
+	Key                      string
+	BackgroundColorHex       string
+	PrimaryColorHex          string
+	PositiveColorHex         string
+	NegativeColorHex         string
+	Light                    bool
+	ContrastMultiplier       float32
+	TextSaturationMultiplier float32
+	IsNew                    bool
+	ErrorMessage             string
+}
+
+type catalogTheme struct {
+	Name        string
+	Key         string
+	PreviewHTML template.HTML
+	BgHex       string
+	PrimaryHex  string
+	PositiveHex string
+	NegativeHex string
+	Light       bool
+	CM          float32
+	TSM         float32
+}
+
+var builtinThemeCatalog []catalogTheme
+
+func parseHSLStr(s string) *hslColorField {
+	if s == "" {
+		return nil
+	}
+	matches := hslColorFieldPattern.FindStringSubmatch(s)
+	if len(matches) != 4 {
+		return nil
+	}
+	h, _ := strconv.ParseFloat(matches[1], 64)
+	sat, _ := strconv.ParseFloat(matches[2], 64)
+	l, _ := strconv.ParseFloat(matches[3], 64)
+	return &hslColorField{H: h, S: sat, L: l}
+}
+
+func safeHex(c *hslColorField) string {
+	if c == nil {
+		return ""
+	}
+	return c.ToHex()
+}
+
+func init() {
+	type rawEntry struct {
+		name, key, bg, primary, positive, negative string
+		cm, tsm                                     float32
+		light                                       bool
+	}
+	entries := []rawEntry{
+		{"Teal City", "teal-city", "225 14 15", "157 47 65", "", "", 1.1, 0, false},
+		{"Catppuccin Frappe", "catppuccin-frappe", "229 19 23", "222 74 74", "96 44 68", "359 68 71", 1.2, 0, false},
+		{"Catppuccin Macchiato", "catppuccin-macchiato", "232 23 18", "220 83 75", "105 48 72", "351 74 73", 1.2, 0, false},
+		{"Catppuccin Mocha", "catppuccin-mocha", "240 21 15", "217 92 83", "115 54 76", "347 70 65", 1.2, 0, false},
+		{"Camouflage", "camouflage", "186 21 20", "97 13 80", "", "", 1.2, 0, false},
+		{"Gruvbox Dark", "gruvbox-dark", "0 0 16", "43 59 81", "61 66 44", "6 96 59", 0, 0, false},
+		{"Kanagawa Dark", "kanagawa-dark", "240 13 14", "51 33 68", "", "358 100 68", 1.2, 0, false},
+		{"Tucan", "tucan", "50 1 6", "24 97 58", "", "209 88 54", 0, 0, false},
+		{"Dracula", "dracula", "231 15 21", "265 89 79", "135 94 66", "0 100 67", 1.2, 0, false},
+		{"Shades of Purple", "shades-of-purple", "243 33 25", "50 100 49", "98 82 71", "12 77 52", 1.2, 0, false},
+		{"Neon Pink", "neon-pink", "240 27 11", "321 100 71", "165 78 51", "360 100 71", 1.5, 0, false},
+		{"Catppuccin Latte", "catppuccin-latte", "220 23 95", "220 91 54", "109 58 40", "347 87 44", 1.0, 0, true},
+		{"Peachy", "peachy", "28 40 77", "155 100 20", "", "0 100 60", 1.1, 0.5, true},
+		{"Zebra", "zebra", "0 0 95", "0 0 10", "", "0 90 50", 0, 0, true},
+	}
+	for _, e := range entries {
+		p := themeProperties{
+			BackgroundColor:          parseHSLStr(e.bg),
+			PrimaryColor:             parseHSLStr(e.primary),
+			PositiveColor:            parseHSLStr(e.positive),
+			NegativeColor:            parseHSLStr(e.negative),
+			ContrastMultiplier:       e.cm,
+			TextSaturationMultiplier: e.tsm,
+			Light:                    e.light,
+			Key:                      e.key,
+		}
+		_ = p.init()
+		builtinThemeCatalog = append(builtinThemeCatalog, catalogTheme{
+			Name:        e.name,
+			Key:         e.key,
+			PreviewHTML: p.PreviewHTML,
+			BgHex:       safeHex(p.BackgroundColor),
+			PrimaryHex:  safeHex(p.PrimaryColor),
+			PositiveHex: safeHex(p.PositiveColor),
+			NegativeHex: safeHex(p.NegativeColor),
+			Light:       e.light,
+			CM:          e.cm,
+			TSM:         e.tsm,
+		})
+	}
 }
 
 type adminSiteSettings struct {
@@ -462,6 +576,39 @@ func hexOf(c *hslColorField) string {
 	return c.ToHex()
 }
 
+func (a *application) freshPresetsFromDisk() []adminPresetItem {
+	contents, _, err := parseYAMLIncludes(a.ConfigPath)
+	if err != nil {
+		return nil
+	}
+	cfg, err := newConfigFromYAML(contents)
+	if err != nil {
+		return nil
+	}
+	var keys []string
+	for k := range cfg.Theme.Presets.Items() {
+		keys = append(keys, k)
+	}
+	items := make([]adminPresetItem, 0, len(keys))
+	for _, key := range keys {
+		p, _ := cfg.Theme.Presets.Get(key)
+		p.Key = key
+		_ = p.init()
+		items = append(items, adminPresetItem{
+			Key:                      key,
+			BackgroundColorHex:       safeHex(p.BackgroundColor),
+			PrimaryColorHex:          safeHex(p.PrimaryColor),
+			PositiveColorHex:         safeHex(p.PositiveColor),
+			NegativeColorHex:         safeHex(p.NegativeColor),
+			Light:                    p.Light,
+			ContrastMultiplier:       p.ContrastMultiplier,
+			TextSaturationMultiplier: p.TextSaturationMultiplier,
+			PreviewHTML:              p.PreviewHTML,
+		})
+	}
+	return items
+}
+
 func (a *application) handleAdminThemeSettings(w http.ResponseWriter, r *http.Request) {
 	if !a.adminAccessAllowed(w, r) {
 		return
@@ -477,10 +624,69 @@ func (a *application) handleAdminThemeSettings(w http.ResponseWriter, r *http.Re
 		ContrastMultiplier:       t.ContrastMultiplier,
 		TextSaturationMultiplier: t.TextSaturationMultiplier,
 		CustomCSSFile:            t.CustomCSSFile,
+		Presets:                  a.freshPresetsFromDisk(),
+		CatalogThemes:            builtinThemeCatalog,
 	}
 	data := adminTemplateData{App: a, ThemeSettings: settings}
 	a.populateTemplateRequestData(&data.Request, r)
 	renderAdminTemplate(w, adminThemeSettingsTemplate, data)
+}
+
+func (a *application) handleAdminThemePreset(w http.ResponseWriter, r *http.Request) {
+	if !a.adminAccessAllowed(w, r) {
+		return
+	}
+	key := r.PathValue("key")
+	var form adminPresetFormData
+
+	if key == "" || key == "new" {
+		form.IsNew = true
+		q := r.URL.Query()
+		form.Key = q.Get("name")
+		form.BackgroundColorHex = q.Get("bg")
+		form.PrimaryColorHex = q.Get("primary")
+		form.PositiveColorHex = q.Get("positive")
+		form.NegativeColorHex = q.Get("negative")
+		form.Light = q.Get("light") == "true"
+		if cm := q.Get("cm"); cm != "" {
+			if v, err := strconv.ParseFloat(cm, 32); err == nil {
+				form.ContrastMultiplier = float32(v)
+			}
+		}
+		if tsm := q.Get("tsm"); tsm != "" {
+			if v, err := strconv.ParseFloat(tsm, 32); err == nil {
+				form.TextSaturationMultiplier = float32(v)
+			}
+		}
+	} else {
+		presets := a.freshPresetsFromDisk()
+		found := false
+		for _, p := range presets {
+			if p.Key == key {
+				form = adminPresetFormData{
+					Key:                      p.Key,
+					BackgroundColorHex:       p.BackgroundColorHex,
+					PrimaryColorHex:          p.PrimaryColorHex,
+					PositiveColorHex:         p.PositiveColorHex,
+					NegativeColorHex:         p.NegativeColorHex,
+					Light:                    p.Light,
+					ContrastMultiplier:       p.ContrastMultiplier,
+					TextSaturationMultiplier: p.TextSaturationMultiplier,
+					IsNew:                    false,
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			a.handleNotFound(w, r)
+			return
+		}
+	}
+
+	data := adminTemplateData{App: a, PresetForm: &form}
+	a.populateTemplateRequestData(&data.Request, r)
+	renderAdminTemplate(w, adminThemePresetTemplate, data)
 }
 
 func (a *application) handleAdminSiteSettings(w http.ResponseWriter, r *http.Request) {

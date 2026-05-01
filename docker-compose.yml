@@ -1,0 +1,17 @@
+services:
+  glance:
+    image: ghcr.io/uhlwoogi/modern-glance:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      # Config directory: glance.yml lives here and is written by the /edit UI.
+      # Copy docs/glance.yml → ./config/glance.yml to get started.
+      - ./config:/app/config
+      # Assets directory: custom CSS, images, icons referenced by server.assets-path.
+      # Set `server: { assets-path: /app/assets }` in glance.yml to enable.
+      - ./assets:/app/assets
+    restart: unless-stopped
+    # Uncomment to inject secrets as environment variables.
+    # Reference them in glance.yml as ${env:MY_SECRET_TOKEN}.
+    # environment:
+    #   MY_SECRET_TOKEN: abc123
